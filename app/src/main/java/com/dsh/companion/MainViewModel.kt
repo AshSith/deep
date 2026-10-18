@@ -99,6 +99,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _chatBackgroundColor = MutableStateFlow(settings.chatBackgroundColor)
     val chatBackgroundColor: StateFlow<Int> = _chatBackgroundColor.asStateFlow()
 
+    private val _themeColor = MutableStateFlow(settings.themeColor)
+    val themeColor: StateFlow<Int> = _themeColor.asStateFlow()
+
     private val _chatBackgroundImage = MutableStateFlow(settings.chatBackgroundImage)
     val chatBackgroundImage: StateFlow<String?> = _chatBackgroundImage.asStateFlow()
 
@@ -194,6 +197,20 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun refreshCharacters() {
         _characters.value = characterRepository.list()
+    }
+
+    fun deleteCharacter(id: String) {
+        val character = characterRepository.get(id) ?: return
+        if (character.isBuiltIn) return
+        characterRepository.delete(character)
+        val remaining = characterRepository.list()
+        val fallback = remaining.firstOrNull()?.id
+        if (fallback != null) {
+            personaStore.personas.value
+                .filter { it.characterId == id }
+                .forEach { personaStore.upsert(it.copy(characterId = fallback)) }
+        }
+        _characters.value = remaining
     }
 
     fun importCharacter(uri: Uri, onResult: (String) -> Unit) {
@@ -355,6 +372,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setChatBackgroundColor(color: Int) {
         settings.chatBackgroundColor = color
         _chatBackgroundColor.value = color
+    }
+
+    fun setThemeColor(color: Int) {
+        settings.themeColor = color
+        _themeColor.value = color
     }
 
     fun setChatBackgroundImage(uri: String?) {
