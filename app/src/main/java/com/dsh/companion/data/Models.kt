@@ -69,12 +69,25 @@ data class ChatMessage(
     val content: String,
     val at: Long = System.currentTimeMillis(),
     val error: Boolean = false,
+    val personaId: String? = null,
+    val senderName: String? = null,
 ) {
     companion object {
         const val ROLE_USER = "user"
         const val ROLE_ASSISTANT = "assistant"
     }
 }
+
+@Serializable
+data class GroupChat(
+    val id: String = UUID.randomUUID().toString(),
+    val title: String,
+    val memberIds: List<String>,
+    val autoChat: Boolean = false,
+    val autoChatMinutes: Int = 30,
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)
 
 @Serializable
 data class ClipMeta(
