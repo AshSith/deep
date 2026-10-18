@@ -56,7 +56,16 @@ class CharacterRepository(private val context: Context) {
             ?: return null
 
         return runCatching {
-            val drawable = ImageDecoder.decodeDrawable(sourceFor(character, clip.file))
+            val drawable = ImageDecoder.decodeDrawable(sourceFor(character, clip.file)) { decoder, info, _ ->
+                val maxHeight = 900
+                if (info.size.height > maxHeight) {
+                    val scale = maxHeight.toFloat() / info.size.height
+                    decoder.setTargetSize(
+                        (info.size.width * scale).toInt().coerceAtLeast(1),
+                        maxHeight,
+                    )
+                }
+            }
             if (drawable is AnimatedImageDrawable) {
                 drawable.repeatCount = AnimatedImageDrawable.REPEAT_INFINITE
             }
