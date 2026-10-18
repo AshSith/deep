@@ -29,6 +29,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt(KEY_CHAT_BG_COLOR, 0xFF0B1020.toInt())
         set(value) = prefs.edit().putInt(KEY_CHAT_BG_COLOR, value).apply()
 
+    var themeColor: Int
+        get() = prefs.getInt(KEY_THEME_COLOR, 0xFF8AB4FF.toInt())
+        set(value) = prefs.edit().putInt(KEY_THEME_COLOR, value).apply()
+
     var chatBackgroundImage: String?
         get() = prefs.getString(KEY_CHAT_BG_IMAGE, null)
         set(value) = prefs.edit().putString(KEY_CHAT_BG_IMAGE, value).apply()
@@ -52,6 +56,7 @@ class SettingsStore(context: Context) {
         const val KEY_X = "overlay_x"
         const val KEY_Y = "overlay_y"
         const val KEY_CHAT_BG_COLOR = "chat_bg_color"
+        const val KEY_THEME_COLOR = "theme_color"
         const val KEY_CHAT_BG_IMAGE = "chat_bg_image"
         const val KEY_BUBBLE_COLOR = "bubble_color"
         const val KEY_BUBBLE_TEXT_COLOR = "bubble_text_color"
