@@ -96,6 +96,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _overlayScale = MutableStateFlow(settings.overlayScale)
     val overlayScale: StateFlow<Float> = _overlayScale.asStateFlow()
 
+    private val _chatBackgroundColor = MutableStateFlow(settings.chatBackgroundColor)
+    val chatBackgroundColor: StateFlow<Int> = _chatBackgroundColor.asStateFlow()
+
+    private val _chatBackgroundImage = MutableStateFlow(settings.chatBackgroundImage)
+    val chatBackgroundImage: StateFlow<String?> = _chatBackgroundImage.asStateFlow()
+
+    private val _bubbleColor = MutableStateFlow(settings.bubbleColor)
+    val bubbleColor: StateFlow<Int> = _bubbleColor.asStateFlow()
+
+    private val _bubbleTextColor = MutableStateFlow(settings.bubbleTextColor)
+    val bubbleTextColor: StateFlow<Int> = _bubbleTextColor.asStateFlow()
+
     val ttsReady: StateFlow<Boolean> = speaker.ready
     val voices = speaker.voices
     val voiceMessage = speaker.message
@@ -338,6 +350,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setOverlayScale(scale: Float) {
         settings.overlayScale = scale
         _overlayScale.value = scale
+    }
+
+    fun setChatBackgroundColor(color: Int) {
+        settings.chatBackgroundColor = color
+        _chatBackgroundColor.value = color
+    }
+
+    fun setChatBackgroundImage(uri: String?) {
+        settings.chatBackgroundImage = uri
+        _chatBackgroundImage.value = uri
+    }
+
+    fun setBubbleColor(color: Int) {
+        settings.bubbleColor = color
+        _bubbleColor.value = color
+    }
+
+    fun setBubbleTextColor(color: Int) {
+        settings.bubbleTextColor = color
+        _bubbleTextColor.value = color
     }
 
     fun restartOverlay() {
