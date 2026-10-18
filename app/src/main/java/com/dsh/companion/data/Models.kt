@@ -62,6 +62,12 @@ data class Conversation(
     val updatedAt: Long = System.currentTimeMillis(),
 )
 
+data class ChatPreview(
+    val conversation: Conversation,
+    val persona: Persona?,
+    val lastMessage: ChatMessage?,
+)
+
 @Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
