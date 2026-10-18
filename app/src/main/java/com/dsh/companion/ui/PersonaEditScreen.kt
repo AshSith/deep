@@ -311,6 +311,27 @@ fun PersonaEditScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        onClick = {
+                            ttsBaseUrl = "https://api.openai.com/v1"
+                            ttsModel = "tts-1"
+                            ttsVoice = "nova"
+                        },
+                    ) { Text("OpenAI 预设") }
+                    TextButton(
+                        onClick = {
+                            ttsBaseUrl = "https://api.siliconflow.cn/v1"
+                            ttsModel = "FunAudioLLM/CosyVoice2-0.5B"
+                            ttsVoice = "FunAudioLLM/CosyVoice2-0.5B:anna"
+                        },
+                    ) { Text("硅基流动预设") }
+                }
+                Text(
+                    text = "音色可以填服务商的音色 ID（包括你克隆出来的音色 ID）。真正的离线内置音色需要把语音模型打进 APK，体积会大很多；现在先走云端。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 OutlinedTextField(
                     value = ttsBaseUrl,
                     onValueChange = { ttsBaseUrl = it },
