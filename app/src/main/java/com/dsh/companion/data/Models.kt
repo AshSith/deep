@@ -19,6 +19,17 @@ data class Persona(
     val speechRate: Float = 1.0f,
     val speakReplies: Boolean = true,
     val historyLimit: Int = 24,
+    // Whisper 兼容的语音识别（可选；留空则用手机系统识别）
+    val sttBaseUrl: String = "https://api.openai.com/v1",
+    val sttApiKey: String = "",
+    val sttModel: String = "whisper-1",
+    // OpenAI 兼容的语音合成（可选；留空则用系统 TTS）
+    val ttsBaseUrl: String = "",
+    val ttsApiKey: String = "",
+    val ttsModel: String = "tts-1",
+    val ttsVoice: String = "alloy",
+    val ttsVoice2: String = "",
+    val ttsMix: Float = 0.5f,
 ) {
     val endpoint: String
         get() {
