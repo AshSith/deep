@@ -2,6 +2,7 @@ package com.dsh.companion.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -18,12 +19,14 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -38,6 +41,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.MainViewModel
+import com.dsh.companion.data.Character
 import com.dsh.companion.data.Persona
 import com.dsh.companion.ui.components.CharacterThumb
 import java.util.Locale
@@ -99,8 +104,16 @@ fun PersonaEditScreen(
     var showKey by remember { mutableStateOf(false) }
     var showVoices by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var showLibrary by remember { mutableStateOf(false) }
+    var deleteTarget by remember { mutableStateOf<Character?>(null) }
 
     val selectedCharacter = characters.firstOrNull { it.id == characterId } ?: characters.firstOrNull()
+
+    LaunchedEffect(characters) {
+        if (characters.isNotEmpty() && characters.none { it.id == characterId }) {
+            characterId = characters.first().id
+        }
+    }
 
     fun draft(): Persona = base.copy(
         name = name.trim().ifBlank { "未命名角色" },
@@ -164,6 +177,18 @@ fun PersonaEditScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Section(title = "形象") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "共 ${characters.size} 个形象",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { showLibrary = true }) { Text("管理形象") }
+                }
                 if (characters.isEmpty()) {
                     Text("还没有角色素材包，去「角色」页导入一个。", color = MaterialTheme.colorScheme.error)
                 }
@@ -189,6 +214,7 @@ fun PersonaEditScreen(
                                     },
                                     shape = RoundedCornerShape(16.dp),
                                 )
+                                .clickable { characterId = character.id }
                                 .padding(8.dp),
                         ) {
                             CharacterThumb(character = character, size = 64.dp)
@@ -482,6 +508,102 @@ fun PersonaEditScreen(
                 }
             }
         }
+    }
+
+    if (showLibrary) {
+        Dialog(onDismissRequest = { showLibrary = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            text = "形象库",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.weight(1f),
+                        )
+                        TextButton(onClick = { showLibrary = false }) { Text("关闭") }
+                    }
+                    LazyColumn(Modifier.heightIn(max = 460.dp)) {
+                        items(characters, key = { it.id }) { character ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        characterId = character.id
+                                        showLibrary = false
+                                    }
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                CharacterThumb(character = character, size = 52.dp)
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(start = 10.dp),
+                                ) {
+                                    Text(character.name)
+                                    Text(
+                                        text = if (character.isBuiltIn) {
+                                            "内置形象"
+                                        } else {
+                                            "导入形象 · ${character.meta.fps}fps"
+                                        },
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                if (character.id == selectedCharacter?.id) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = "当前形象",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                                if (!character.isBuiltIn) {
+                                    IconButton(
+                                        onClick = {
+                                            deleteTarget = character
+                                            showLibrary = false
+                                        },
+                                    ) {
+                                        Icon(Icons.Default.Delete, contentDescription = "删除形象")
+                                    }
+                                }
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (deleteTarget != null) {
+        AlertDialog(
+            onDismissRequest = { deleteTarget = null },
+            title = { Text("删除这个形象？") },
+            text = {
+                Text("「${deleteTarget?.name}」的素材会从手机里删掉；正在使用它的角色会回退到第一个形象。")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val target = deleteTarget
+                        deleteTarget = null
+                        target?.let { vm.deleteCharacter(it.id) }
+                    },
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteTarget = null }) { Text("取消") }
+            },
+        )
     }
 
     if (confirmDelete) {
