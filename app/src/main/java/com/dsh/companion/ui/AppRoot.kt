@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Chat
+import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
@@ -19,7 +20,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dsh.companion.MainViewModel
+import com.dsh.companion.group.GroupChatScreen
+import com.dsh.companion.group.GroupListScreen
+import com.dsh.companion.group.GroupViewModel
 
 private data class Tab(
     val route: String,
@@ -29,12 +34,14 @@ private data class Tab(
 
 private val tabs = listOf(
     Tab("chat", "聊天", Icons.Default.Chat),
+    Tab("groups", "群聊", Icons.Default.Group),
     Tab("personas", "角色", Icons.Default.Person),
     Tab("settings", "设置", Icons.Default.Settings),
 )
 
 @Composable
 fun AppRoot(vm: MainViewModel) {
+    val groupVm: GroupViewModel = viewModel()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
@@ -94,6 +101,19 @@ fun AppRoot(vm: MainViewModel) {
             composable("appearance") {
                 AppearanceScreen(
                     vm = vm,
+                    onBack = { navController.popBackStack() },
+                )
+            }
+            composable("groups") {
+                GroupListScreen(
+                    vm = groupVm,
+                    onOpen = { id -> navController.navigate("group/$id") },
+                )
+            }
+            composable("group/{id}") { entry ->
+                GroupChatScreen(
+                    vm = groupVm,
+                    groupId = entry.arguments?.getString("id") ?: "",
                     onBack = { navController.popBackStack() },
                 )
             }
