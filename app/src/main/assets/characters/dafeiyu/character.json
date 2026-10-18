@@ -1,0 +1,80 @@
+{
+  "id": "dafeiyu",
+  "name": "大肥鱼",
+  "subtitle": "鲸尾女仆",
+  "author": "PC2005-cloud / dsh-pet",
+  "license": "MIT",
+  "fps": 24,
+  "frameWidth": 404,
+  "frameHeight": 344,
+  "defaultClip": "idle",
+  "states": {
+    "idle": "idle",
+    "thinking": "thinking",
+    "working": "working",
+    "success": "success",
+    "error": "error"
+  },
+  "clips": {
+    "idle": {
+      "file": "idle.webp",
+      "loop": true,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "thinking": {
+      "file": "thinking.webp",
+      "loop": true,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "success": {
+      "file": "success.webp",
+      "loop": false,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "error": {
+      "file": "error.webp",
+      "loop": false,
+      "frames": 118,
+      "durationMs": 4956
+    },
+    "poke": {
+      "file": "poke.webp",
+      "loop": false,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "head_pat": {
+      "file": "head_pat.webp",
+      "loop": false,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "tail": {
+      "file": "tail.webp",
+      "loop": false,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "eat_token": {
+      "file": "eat_token.webp",
+      "loop": false,
+      "frames": 241,
+      "durationMs": 10122
+    },
+    "dragging": {
+      "file": "dragging.webp",
+      "loop": true,
+      "frames": 144,
+      "durationMs": 6048
+    },
+    "dragging_release": {
+      "file": "dragging_release.webp",
+      "loop": false,
+      "frames": 49,
+      "durationMs": 2058
+    }
+  }
+}

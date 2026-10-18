@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">DSH 伴侣</string>
+    <string name="notification_channel_name">桌宠</string>
+    <string name="notification_channel_desc">让角色一直待在你的屏幕上</string>
+    <string name="notification_title">DSH 伴侣在陪你</string>
+    <string name="notification_stop">收起</string>
+</resources>
