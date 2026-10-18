@@ -12,9 +12,12 @@ import com.dsh.companion.data.Persona
 import com.dsh.companion.data.PersonaStore
 import com.dsh.companion.data.SettingsStore
 import com.dsh.companion.net.ChatClient
+import com.dsh.companion.net.CloudStt
+import com.dsh.companion.net.CloudTts
 import com.dsh.companion.pet.PetBus
 import com.dsh.companion.pet.PetEvent
 import com.dsh.companion.pet.PetOverlayService
+import com.dsh.companion.voice.AudioRecorder
 import com.dsh.companion.voice.Speaker
 import com.dsh.companion.voice.VoiceRecognizer
 import kotlinx.coroutines.CancellationException
@@ -29,6 +32,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 
 class MainViewModel(app: Application) : AndroidViewModel(app) {
@@ -39,6 +43,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val client = ChatClient()
     private val speaker = Speaker(app)
     private val recognizer = VoiceRecognizer(app)
+    private val recorder = AudioRecorder(app)
+    private val cloudStt = CloudStt()
+    private val cloudTts = CloudTts(app)
 
     val personas: StateFlow<List<Persona>> = personaStore.personas
 
@@ -70,6 +77,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _partial = MutableStateFlow("")
     val partial: StateFlow<String> = _partial.asStateFlow()
 
+    private val _recording = MutableStateFlow(false)
+    val recording: StateFlow<Boolean> = _recording.asStateFlow()
+
+    private val _notice = MutableStateFlow<String?>(null)
+    val notice: StateFlow<String?> = _notice.asStateFlow()
+
     private val _overlayEnabled = MutableStateFlow(settings.overlayEnabled)
     val overlayEnabled: StateFlow<Boolean> = _overlayEnabled.asStateFlow()
 
@@ -81,6 +94,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val voiceMessage = speaker.message
 
     private var sendJob: Job? = null
+    private var speechJob: Job? = null
     private var loadedFor: String? = null
 
     init {
@@ -124,6 +138,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         if (!existing) setActive(persona.id)
         if (_activeId.value == persona.id) {
             _activePersona.value = persona
+            if (persona.apiKey.isNotBlank()) {
+                _messages.value = _messages.value.filterNot {
+                    it.error && it.content.contains("API Key")
+                }
+            }
             PetBus.emit(PetEvent.Clip("idle", once = false))
         }
     }
@@ -161,13 +180,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val persona = _activePersona.value ?: return
 
         if (persona.apiKey.isBlank()) {
-            val hint = ChatMessage(
-                role = ChatMessage.ROLE_ASSISTANT,
-                content = "还没有填 API Key。去「设置」里选一个角色，把 Key 填上，我就能说话了。",
-                error = true,
-            )
-            _messages.value = _messages.value + hint
+            _notice.value = "还没有填 API Key。去「角色」里选一个角色，把 Key 填上。"
             _stageClip.value = "error"
+            viewModelScope.launch {
+                delay(1800)
+                if (_stageClip.value == "error") _stageClip.value = "idle"
+            }
             return
         }
 
@@ -194,7 +212,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _stageClip.value = "success"
                 PetBus.emit(PetEvent.Success)
                 PetBus.emit(PetEvent.Say(reply))
-                if (persona.speakReplies) speaker.speak(reply, persona)
+                if (persona.speakReplies) speakReply(persona, reply)
 
                 delay(1100)
                 if (_stageClip.value == "success") _stageClip.value = "idle"
@@ -220,9 +238,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun stop() {
         sendJob?.cancel()
         sendJob = null
+        speechJob?.cancel()
+        speechJob = null
         _streaming.value = false
         _stageClip.value = "idle"
         speaker.stop()
+        cloudTts.stop()
     }
 
     fun newChat() {
@@ -273,6 +294,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         speaker.preview(voiceName, pitch, rate)
     }
 
+    fun previewPersonaVoice(persona: Persona) {
+        if (persona.ttsBaseUrl.isNotBlank() && persona.ttsApiKey.isNotBlank()) {
+            viewModelScope.launch {
+                runCatching {
+                    cloudTts.speak(persona, "你好呀，我是你的伙伴。今天想聊点什么？")
+                }.onFailure {
+                    _notice.value = "云端朗读失败：${it.message ?: "未知错误"}"
+                }
+            }
+        } else {
+            speaker.preview(persona.voiceName, persona.speechPitch, persona.speechRate)
+            if (!speaker.ready.value) {
+                _notice.value = "系统 TTS 还没就绪；可以在角色里填云端 TTS 的 API"
+            }
+        }
+    }
+
+    fun clearNotice() {
+        _notice.value = null
+    }
+
+    private fun speakReply(persona: Persona, text: String) {
+        speechJob?.cancel()
+        if (persona.ttsBaseUrl.isNotBlank() && persona.ttsApiKey.isNotBlank()) {
+            speechJob = viewModelScope.launch {
+                runCatching { cloudTts.speak(persona, text) }
+                    .onFailure {
+                        _notice.value = "云端朗读失败：${it.message ?: "未知错误"}"
+                    }
+            }
+        } else {
+            speaker.speak(text, persona)
+            if (!speaker.ready.value) {
+                _notice.value = "系统 TTS 还没就绪。可以在角色里填云端 TTS 的 API。"
+            }
+        }
+    }
+
     fun refreshVoices() {
         speaker.refreshVoices()
     }
@@ -312,6 +371,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         recognizer.stop()
     }
 
+    fun beginVoiceInput(
+        onPartial: (String) -> Unit,
+        onFinal: (String) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        val persona = _activePersona.value
+        if (persona != null && persona.sttApiKey.isNotBlank() && persona.sttBaseUrl.isNotBlank()) {
+            runCatching { recorder.start() }
+                .onSuccess { _recording.value = true }
+                .onFailure { onError("录音启动失败：${it.message ?: "未知错误"}") }
+        } else {
+            startListening(
+                onPartial = onPartial,
+                onFinal = onFinal,
+                onError = onError,
+            )
+        }
+    }
+
+    fun finishVoiceInput(onFinal: (String) -> Unit, onError: (String) -> Unit) {
+        if (!_recording.value) return
+        val file = recorder.stop()
+        _recording.value = false
+        val persona = _activePersona.value
+        if (file == null || persona == null) {
+            onError("没有录到声音")
+            return
+        }
+        _partial.value = "识别中…"
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    cloudStt.transcribe(persona, file)
+                }
+            }.onSuccess { text ->
+                _partial.value = ""
+                if (text.isBlank()) onError("没听清，再说一次") else onFinal(text)
+            }.onFailure {
+                _partial.value = ""
+                onError("识别失败：${it.message ?: "未知错误"}")
+            }
+            file.delete()
+        }
+    }
+
+    fun cancelVoiceInput() {
+        if (_recording.value) {
+            recorder.cancel()
+            _recording.value = false
+        }
+        stopListening()
+    }
+
     private fun updateMessage(id: String, transform: (ChatMessage) -> ChatMessage) {
         _messages.value = _messages.value.map { message ->
             if (message.id == id) transform(message) else message
@@ -320,6 +432,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         sendJob?.cancel()
+        speechJob?.cancel()
+        recorder.cancel()
+        cloudTts.stop()
         recognizer.destroy()
         speaker.shutdown()
         super.onCleared()
