@@ -450,8 +450,16 @@ private fun ChatBackground(color: Int, imageUri: String?) {
         value = withContext(Dispatchers.IO) {
             imageUri?.let { uri ->
                 runCatching {
-                    context.contentResolver.openInputStream(Uri.parse(uri))?.use {
-                        BitmapFactory.decodeStream(it)
+                    val parsed = Uri.parse(uri)
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    context.contentResolver.openInputStream(parsed)?.use {
+                        BitmapFactory.decodeStream(it, null, bounds)
+                    }
+                    var sample = 1
+                    while (bounds.outHeight / sample > 1800) sample *= 2
+                    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+                    context.contentResolver.openInputStream(parsed)?.use {
+                        BitmapFactory.decodeStream(it, null, options)
                     }
                 }.getOrNull()
             }
