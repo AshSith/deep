@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  ANDROID_HOME: /usr/local/lib/android/sdk
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,13 +25,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Accept licenses and install SDK packages
+      - name: Install Android SDK packages
         run: |
-          yes | sdkmanager --licenses > /dev/null || true
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
+          SDKMANAGER=$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          echo "sdkmanager: $SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Install Gradle 8.9
         run: |
