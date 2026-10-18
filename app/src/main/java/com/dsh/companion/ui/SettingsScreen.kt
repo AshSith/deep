@@ -173,7 +173,7 @@ fun SettingsScreen(vm: MainViewModel) {
 
                     if (!canDraw) {
                         Text(
-                            text = "需要「显示在其他应用上层」权限。开启后拖她到任意位置，点一下回聊天，长按摸头，双击摇尾巴。",
+                            text = "需要「显示在其他应用上层」权限。开启后：点一下戳她（会冒气泡），双击打开聊天，长按摸头，点气泡也能进聊天。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
