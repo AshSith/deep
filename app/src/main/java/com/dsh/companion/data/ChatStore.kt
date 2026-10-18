@@ -16,6 +16,9 @@ class ChatStore(context: Context) {
             .filter { it.personaId == personaId }
             .sortedByDescending { it.updatedAt }
 
+    fun allConversations(): List<Conversation> =
+        conversations().sortedByDescending { it.updatedAt }
+
     /** Returns the newest conversation for this persona, creating one (and migrating old history) if needed. */
     fun ensure(personaId: String, personaName: String): Conversation = synchronized(lock) {
         val all = conversations().toMutableList()
