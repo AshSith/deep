@@ -31,6 +31,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.MainViewModel
 import com.dsh.companion.data.Persona
@@ -438,39 +440,48 @@ fun PersonaEditScreen(
     }
 
     if (showVoices) {
-        AlertDialog(
-            onDismissRequest = { showVoices = false },
-            title = { Text("选择音色") },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .heightIn(max = 420.dp)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    VoiceRow(
-                        label = "跟随系统默认",
-                        selected = voiceName == null,
-                        onClick = {
-                            voiceName = null
-                            showVoices = false
-                        },
-                    )
-                    voices.forEach { voice ->
+        Dialog(onDismissRequest = { showVoices = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp,
+            ) {
+                Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                    Text("选择音色", style = MaterialTheme.typography.titleMedium)
+                    Column(
+                        modifier = Modifier
+                            .heightIn(max = 420.dp)
+                            .verticalScroll(rememberScrollState())
+                            .padding(vertical = 8.dp),
+                    ) {
                         VoiceRow(
-                            label = voice.label + if (voice.needsNetwork) " · 需联网" else "",
-                            selected = voiceName == voice.name,
+                            label = "跟随系统默认",
+                            selected = voiceName == null,
                             onClick = {
-                                voiceName = voice.name
+                                voiceName = null
                                 showVoices = false
                             },
                         )
+                        voices.forEach { voice ->
+                            VoiceRow(
+                                label = voice.label + if (voice.needsNetwork) " · 需联网" else "",
+                                selected = voiceName == voice.name,
+                                onClick = {
+                                    voiceName = voice.name
+                                    showVoices = false
+                                },
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                    ) {
+                        TextButton(onClick = { showVoices = false }) { Text("关闭") }
                     }
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showVoices = false }) { Text("关闭") }
-            },
-        )
+            }
+        }
     }
 
     if (confirmDelete) {
