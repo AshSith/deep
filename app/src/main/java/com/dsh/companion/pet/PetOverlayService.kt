@@ -76,6 +76,7 @@ class PetOverlayService : Service() {
     private var downX = 0f
     private var downY = 0f
     private var dragging = false
+    private var dragClipStarted = false
     private var revert: Runnable? = null
 
     private var scaleDetector: ScaleGestureDetector? = null
@@ -193,8 +194,8 @@ class PetOverlayService : Service() {
             gravity = Gravity.TOP or Gravity.START
             x = if (settings.overlayX >= 0) settings.overlayX else metrics.widthPixels - width - dp(6)
             y = if (settings.overlayY >= 0) settings.overlayY else (metrics.heightPixels * 0.32f).toInt()
-            x = x.coerceIn(0, max(0, metrics.widthPixels - width))
-            y = y.coerceIn(0, max(0, metrics.heightPixels - height))
+            x = clampX(x, width)
+            y = clampY(y, height)
         }
 
         val gesture = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
@@ -246,6 +247,7 @@ class PetOverlayService : Service() {
                     downX = event.rawX
                     downY = event.rawY
                     dragging = false
+                    dragClipStarted = false
                 }
 
                 MotionEvent.ACTION_MOVE -> {
@@ -255,12 +257,14 @@ class PetOverlayService : Service() {
                         val dy = event.rawY - downY
                         if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
                             dragging = true
+                            if (!dragClipStarted) {
+                                dragClipStarted = true
+                                playClip("dragging", once = false)
+                            }
                         }
                         if (dragging) {
-                            params.x = (startX + dx.toInt())
-                                .coerceIn(0, max(0, metrics.widthPixels - params.width))
-                            params.y = (startY + dy.toInt())
-                                .coerceIn(0, max(0, metrics.heightPixels - params.height))
+                            params.x = clampX(startX + dx.toInt(), params.width)
+                            params.y = clampY(startY + dy.toInt(), params.height)
                             runCatching { windowManager.updateViewLayout(image, params) }
                             moveBubble()
                         }
@@ -281,6 +285,7 @@ class PetOverlayService : Service() {
                         }
                     }
                     dragging = false
+                    dragClipStarted = false
                     velocityTracker?.recycle()
                     velocityTracker = null
                 }
@@ -305,8 +310,8 @@ class PetOverlayService : Service() {
         val nextHeight = (baseHeight * scale).toInt().coerceAtLeast(dp(45))
         params.width = nextWidth
         params.height = nextHeight
-        params.x = params.x.coerceIn(0, max(0, metrics.widthPixels - nextWidth))
-        params.y = params.y.coerceIn(0, max(0, metrics.heightPixels - nextHeight))
+        params.x = clampX(params.x, nextWidth)
+        params.y = clampY(params.y, nextHeight)
         runCatching { windowManager.updateViewLayout(image, params) }
         moveBubble()
     }
@@ -325,8 +330,8 @@ class PetOverlayService : Service() {
         val params = petParams ?: return
         val image = petView ?: return
         val metrics = resources.displayMetrics
-        params.x = metrics.widthPixels - params.width - dp(6)
-        params.y = metrics.heightPixels - params.height - dp(12)
+        params.x = metrics.widthPixels - params.width
+        params.y = metrics.heightPixels - params.height
         runCatching { windowManager.updateViewLayout(image, params) }
         settings.overlayX = params.x
         settings.overlayY = params.y
@@ -338,9 +343,8 @@ class PetOverlayService : Service() {
         val params = petParams ?: return
         val image = petView ?: return
         val metrics = resources.displayMetrics
-        params.x = metrics.widthPixels - params.width / 5
-        params.y = (metrics.heightPixels * 0.65f).toInt()
-            .coerceIn(0, max(0, metrics.heightPixels - params.height))
+        params.x = metrics.widthPixels - edgeMargin()
+        params.y = clampY((metrics.heightPixels * 0.65f).toInt(), params.height)
         runCatching { windowManager.updateViewLayout(image, params) }
         settings.overlayX = params.x
         settings.overlayY = params.y
@@ -356,7 +360,7 @@ class PetOverlayService : Service() {
     }
 
     private fun randomAction() {
-        val clips = listOf("poke", "head_pat", "tail", "eat_token")
+        val clips = listOf("poke", "head_pat", "tail", "eat_token", "shy", "bow")
         playClip(clips.random(), once = true)
     }
 
@@ -421,6 +425,9 @@ class PetOverlayService : Service() {
         addItem("点击回应：${if (settings.tapResponds) "开" else "关"}") {
             settings.tapResponds = !settings.tapResponds
             hideMenu()
+        }
+        addItem("动作列表") {
+            showActionList()
         }
         addItem("随机动作") {
             randomAction()
@@ -537,12 +544,110 @@ class PetOverlayService : Service() {
         runCatching { windowManager.addView(scroll, params) }
     }
 
+    private fun showActionList() {
+        hideMenu()
+        val persona = personas.get(settings.activePersonaId) ?: personas.first()
+        val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
+        val clips = character.meta.clips
+        if (clips.isEmpty()) return
+
+        val metrics = resources.displayMetrics
+        val panelWidth = dp(270)
+        val panelHeight = (metrics.heightPixels * 0.78f).toInt()
+
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(4), dp(2), dp(8))
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(box)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(0xFFFFFBF0.toInt())
+                setStroke(dp(1), 0x33C9A96A)
+            }
+        }
+
+        val title = TextView(this).apply {
+            text = "动作列表"
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xFF2F2A22.toInt())
+            setPadding(dp(16), dp(12), dp(16), dp(4))
+        }
+        box.addView(title)
+
+        clips.keys.sorted().forEach { name ->
+            val clip = clips[name] ?: return@forEach
+            val item = TextView(this).apply {
+                text = "${actionLabel(name)}  ·  $name"
+                textSize = 15f
+                setTextColor(0xFF2F2A22.toInt())
+                setPadding(dp(16), dp(11), dp(16), dp(11))
+                isClickable = true
+                setOnClickListener {
+                    playClip(name, once = !clip.loop)
+                    hideMenu()
+                }
+            }
+            box.addView(item)
+        }
+
+        val params = WindowManager.LayoutParams(
+            panelWidth,
+            panelHeight,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            val pet = petParams
+            x = if (pet != null && pet.x > panelWidth + dp(12)) {
+                pet.x - panelWidth - dp(8)
+            } else {
+                (pet?.x ?: 0) + (pet?.width ?: 0) + dp(8)
+            }
+            x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
+            y = (pet?.y ?: dp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
+        }
+
+        menuView = scroll
+        menuParams = params
+        runCatching { windowManager.addView(scroll, params) }
+    }
+
+    private fun actionLabel(name: String): String = when (name) {
+        "idle" -> "待机"
+        "sleepy" -> "打盹"
+        "thinking" -> "思考"
+        "success" -> "开心"
+        "error" -> "难过"
+        "poke" -> "戳一下"
+        "head_pat" -> "摸头"
+        "shy" -> "害羞"
+        "dance" -> "跳舞"
+        "jump" -> "跳一下"
+        "tail" -> "摇尾巴"
+        "eat_token" -> "吃 token"
+        "bow" -> "鞠躬"
+        "dragging" -> "被拖拽"
+        "dragging_release" -> "落地"
+        "stocking" -> "丝袜"
+        "fox_nap" -> "狐狸打盹"
+        "bed_sleep" -> "床上睡觉"
+        else -> name
+    }
+
     private fun fling(vx0: Float, vy0: Float) {
         val image = petView ?: return
         val params = petParams ?: return
         val metrics = resources.displayMetrics
-        val maxX = max(0, metrics.widthPixels - params.width)
-        val maxY = max(0, metrics.heightPixels - params.height)
+        val minX = -params.width + edgeMargin()
+        val maxX = metrics.widthPixels - edgeMargin()
+        val minY = -params.height + edgeMargin()
+        val maxY = metrics.heightPixels - edgeMargin()
         var x = params.x.toFloat()
         var y = params.y.toFloat()
         var vx = vx0.coerceIn(-6000f, 6000f)
@@ -560,17 +665,17 @@ class PetOverlayService : Service() {
                 x += vx * dt
                 y += vy * dt
 
-                if (x < 0) {
-                    x = 0f
+                if (x < minX) {
+                    x = minX.toFloat()
                     vx = -vx * 0.62f
-                } else if (x > maxX.toFloat()) {
+                } else if (x > maxX) {
                     x = maxX.toFloat()
                     vx = -vx * 0.62f
                 }
-                if (y < 0) {
-                    y = 0f
+                if (y < minY) {
+                    y = minY.toFloat()
                     vy = -vy * 0.55f
-                } else if (y > maxY.toFloat()) {
+                } else if (y > maxY) {
                     y = maxY.toFloat()
                     vy = -vy * 0.55f
                     vx *= 0.86f
@@ -788,6 +893,18 @@ class PetOverlayService : Service() {
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
+
+    private fun edgeMargin(): Int = dp(56)
+
+    private fun clampX(x: Int, width: Int): Int {
+        val metrics = resources.displayMetrics
+        return x.coerceIn(-width + edgeMargin(), metrics.widthPixels - edgeMargin())
+    }
+
+    private fun clampY(y: Int, height: Int): Int {
+        val metrics = resources.displayMetrics
+        return y.coerceIn(-height + edgeMargin(), metrics.heightPixels - edgeMargin())
+    }
 
     private val touchSlop: Int by lazy {
         android.view.ViewConfiguration.get(this).scaledTouchSlop
