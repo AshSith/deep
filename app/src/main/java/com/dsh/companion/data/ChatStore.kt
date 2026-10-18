@@ -9,6 +9,7 @@ class ChatStore(context: Context) {
     fun load(personaId: String): List<ChatMessage> {
         val file = File(dir, "${safe(personaId)}.json")
         return JsonStore.read<List<ChatMessage>>(file, emptyList())
+            .filterNot { it.error && it.content.contains("API Key") }
     }
 
     fun save(personaId: String, messages: List<ChatMessage>) {
