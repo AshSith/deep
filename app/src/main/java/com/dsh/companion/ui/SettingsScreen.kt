@@ -59,6 +59,7 @@ fun SettingsScreen(vm: MainViewModel) {
     val context = LocalContext.current
     val overlayEnabled by vm.overlayEnabled.collectAsStateWithLifecycle()
     val scale by vm.overlayScale.collectAsStateWithLifecycle()
+    val persona by vm.activePersona.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
@@ -210,6 +211,9 @@ fun SettingsScreen(vm: MainViewModel) {
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         TextButton(onClick = { vm.refreshVoices() }) { Text("刷新音色") }
+                        TextButton(onClick = { persona?.let { vm.previewPersonaVoice(it) } }) {
+                            Text("测试朗读")
+                        }
                         TextButton(
                             onClick = {
                                 runCatching {
@@ -221,7 +225,11 @@ fun SettingsScreen(vm: MainViewModel) {
                         ) { Text("系统语音设置") }
                     }
                     Text(
-                        text = "音色在「角色 → 声音」里逐个角色选择，可以调音高和语速。",
+                        text = if (persona?.ttsBaseUrl.isNullOrBlank()) {
+                            "当前角色用系统 TTS。音色在「角色 → 声音」里选；不会出声通常是手机没装中文语音引擎。"
+                        } else {
+                            "当前角色用云端 TTS：${persona?.ttsBaseUrl}，音色 ${persona?.ttsVoice}"
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
