@@ -9,7 +9,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Color
+import android.graphics.ColorMatrix
+import android.graphics.ColorMatrixColorFilter
 import android.graphics.PixelFormat
+import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
@@ -23,8 +26,12 @@ import android.view.MotionEvent
 import android.view.ScaleGestureDetector
 import android.view.VelocityTracker
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.ImageView
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -33,8 +40,11 @@ import com.dsh.companion.AppVisibility
 import com.dsh.companion.MainActivity
 import com.dsh.companion.R
 import com.dsh.companion.data.CharacterRepository
+import com.dsh.companion.data.ChatMessage
+import com.dsh.companion.data.GroupStore
 import com.dsh.companion.data.PersonaStore
 import com.dsh.companion.data.SettingsStore
+import com.dsh.companion.group.GroupChatEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -42,12 +52,16 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.random.Random
 
 class PetOverlayService : Service() {
     private lateinit var windowManager: WindowManager
     private lateinit var settings: SettingsStore
     private lateinit var personas: PersonaStore
     private lateinit var characters: CharacterRepository
+    private lateinit var groupStore: GroupStore
+    private lateinit var groupEngine: GroupChatEngine
+    private var autoChatBusy = false
 
     private var petView: ImageView? = null
     private var bubbleView: TextView? = null
@@ -77,6 +91,10 @@ class PetOverlayService : Service() {
     private var bubbleStartOffsetX = 0f
     private var bubbleStartOffsetY = 0f
     private var bubbleMoved = false
+
+    private var menuView: View? = null
+    private var menuParams: WindowManager.LayoutParams? = null
+    private var collapsed = false
 
     private val pokeLines = listOf(
         "干嘛戳我…",
@@ -108,11 +126,14 @@ class PetOverlayService : Service() {
         settings = SettingsStore(this)
         personas = PersonaStore(this)
         characters = CharacterRepository(this)
+        groupStore = GroupStore(this)
+        groupEngine = GroupChatEngine(this)
 
         showPet()
         playClip("idle", once = false)
         observeEvents()
         observeAppVisibility()
+        scheduleAutoChat()
         handler.postDelayed({
             if (!AppVisibility.foreground.value) {
                 showBubble("我在这儿。点一下戳我，双击打开聊天。")
@@ -132,8 +153,11 @@ class PetOverlayService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        handler.removeCallbacks(autoChatRunnable)
         flingRunnable?.let(handler::removeCallbacks)
         velocityTracker?.recycle()
+        menuView?.let { runCatching { windowManager.removeView(it) } }
+        menuView = null
         handler.removeCallbacksAndMessages(null)
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         petView?.let { runCatching { windowManager.removeView(it) } }
@@ -177,7 +201,12 @@ class PetOverlayService : Service() {
             override fun onDown(e: MotionEvent): Boolean = true
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (!dragging) {
+                if (collapsed) {
+                    collapsed = false
+                    moveToCorner()
+                    return true
+                }
+                if (!dragging && settings.tapResponds) {
                     playClip("poke", once = true)
                     showBubble(pokeLines.random())
                 }
@@ -190,23 +219,13 @@ class PetOverlayService : Service() {
             }
 
             override fun onLongPress(e: MotionEvent) {
-                playClip("head_pat", once = true)
-                showBubble("呼噜呼噜…")
+                showMenu()
             }
         })
 
         val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
-                val next = (settings.overlayScale * detector.scaleFactor).coerceIn(0.4f, 3f)
-                settings.overlayScale = next
-                val nextWidth = (baseWidth * next).toInt().coerceAtLeast(dp(40))
-                val nextHeight = (baseHeight * next).toInt().coerceAtLeast(dp(45))
-                params.width = nextWidth
-                params.height = nextHeight
-                params.x = params.x.coerceIn(0, max(0, metrics.widthPixels - nextWidth))
-                params.y = params.y.coerceIn(0, max(0, metrics.heightPixels - nextHeight))
-                runCatching { windowManager.updateViewLayout(image, params) }
-                moveBubble()
+                applyScale(settings.overlayScale * detector.scaleFactor)
                 return true
             }
         })
@@ -272,6 +291,250 @@ class PetOverlayService : Service() {
         petView = image
         petParams = params
         windowManager.addView(image, params)
+        applyBrightness()
+        applyFlip()
+    }
+
+    private fun applyScale(value: Float) {
+        val scale = value.coerceIn(0.4f, 3f)
+        val image = petView ?: return
+        val params = petParams ?: return
+        settings.overlayScale = scale
+        val metrics = resources.displayMetrics
+        val nextWidth = (baseWidth * scale).toInt().coerceAtLeast(dp(40))
+        val nextHeight = (baseHeight * scale).toInt().coerceAtLeast(dp(45))
+        params.width = nextWidth
+        params.height = nextHeight
+        params.x = params.x.coerceIn(0, max(0, metrics.widthPixels - nextWidth))
+        params.y = params.y.coerceIn(0, max(0, metrics.heightPixels - nextHeight))
+        runCatching { windowManager.updateViewLayout(image, params) }
+        moveBubble()
+    }
+
+    private fun applyBrightness() {
+        val value = settings.overlayBrightness
+        val matrix = ColorMatrix().apply { setScale(value, value, value, 1f) }
+        petView?.colorFilter = ColorMatrixColorFilter(matrix)
+    }
+
+    private fun applyFlip() {
+        petView?.scaleX = if (settings.overlayFlipped) -1f else 1f
+    }
+
+    private fun moveToCorner() {
+        val params = petParams ?: return
+        val image = petView ?: return
+        val metrics = resources.displayMetrics
+        params.x = metrics.widthPixels - params.width - dp(6)
+        params.y = metrics.heightPixels - params.height - dp(12)
+        runCatching { windowManager.updateViewLayout(image, params) }
+        settings.overlayX = params.x
+        settings.overlayY = params.y
+        collapsed = false
+        moveBubble()
+    }
+
+    private fun collapseToSide() {
+        val params = petParams ?: return
+        val image = petView ?: return
+        val metrics = resources.displayMetrics
+        params.x = metrics.widthPixels - params.width / 5
+        params.y = (metrics.heightPixels * 0.65f).toInt()
+            .coerceIn(0, max(0, metrics.heightPixels - params.height))
+        runCatching { windowManager.updateViewLayout(image, params) }
+        settings.overlayX = params.x
+        settings.overlayY = params.y
+        collapsed = true
+        moveBubble()
+    }
+
+    private fun wander() {
+        fling(
+            Random.nextFloat() * 1800f - 900f,
+            -Random.nextFloat() * 1200f - 400f,
+        )
+    }
+
+    private fun randomAction() {
+        val clips = listOf("poke", "head_pat", "tail", "eat_token")
+        playClip(clips.random(), once = true)
+    }
+
+    private fun hideMenu() {
+        val view = menuView ?: return
+        menuView = null
+        menuParams = null
+        runCatching { windowManager.removeView(view) }
+    }
+
+    private fun showMenu() {
+        hideMenu()
+        val metrics = resources.displayMetrics
+        val panelWidth = dp(250)
+        val panelHeight = (metrics.heightPixels * 0.82f).toInt()
+
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(2), dp(4), dp(2), dp(8))
+        }
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            addView(box)
+            background = GradientDrawable().apply {
+                cornerRadius = dp(18).toFloat()
+                setColor(0xFFFFFBF0.toInt())
+                setStroke(dp(1), 0x33C9A96A)
+            }
+        }
+
+        val title = TextView(this).apply {
+            text = "桌宠设置"
+            textSize = 18f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(0xFF2F2A22.toInt())
+            setPadding(dp(16), dp(12), dp(16), dp(4))
+        }
+        box.addView(title)
+
+        fun addItem(label: String, action: () -> Unit) {
+            val item = TextView(this).apply {
+                text = label
+                textSize = 16f
+                setTextColor(0xFF2F2A22.toInt())
+                setPadding(dp(16), dp(13), dp(16), dp(13))
+                isClickable = true
+                setOnClickListener { action() }
+            }
+            box.addView(item)
+        }
+
+        fun addDivider() {
+            box.addView(View(this).apply {
+                setBackgroundColor(0x22A08050)
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    dp(1),
+                )
+            })
+        }
+
+        addItem("点击回应：${if (settings.tapResponds) "开" else "关"}") {
+            settings.tapResponds = !settings.tapResponds
+            hideMenu()
+        }
+        addItem("随机动作") {
+            randomAction()
+            hideMenu()
+        }
+        addItem("待机") {
+            playClip("idle", once = false)
+            hideMenu()
+        }
+        addItem("转向") {
+            settings.overlayFlipped = !settings.overlayFlipped
+            applyFlip()
+            hideMenu()
+        }
+        addItem("摸头") {
+            playClip("head_pat", once = true)
+            showBubble("呼噜呼噜…")
+            hideMenu()
+        }
+        addItem("漫游") {
+            wander()
+            hideMenu()
+        }
+        addDivider()
+
+        val sizeLabel = TextView(this).apply {
+            text = "大小：${(settings.overlayScale * 100).toInt()}%"
+            textSize = 15f
+            setTextColor(0xFF8A6A24.toInt())
+            setPadding(dp(16), dp(10), dp(16), 0)
+        }
+        box.addView(sizeLabel)
+        val sizeSeek = SeekBar(this).apply {
+            max = 260
+            progress = ((settings.overlayScale * 100).toInt() - 40).coerceIn(0, 260)
+            setPadding(dp(14), dp(2), dp(14), dp(2))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val percent = progress + 40
+                    sizeLabel.text = "大小：$percent%"
+                    applyScale(percent / 100f)
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        box.addView(sizeSeek)
+
+        val brightnessLabel = TextView(this).apply {
+            text = "亮度：${(settings.overlayBrightness * 100).toInt()}%"
+            textSize = 15f
+            setTextColor(0xFF8A6A24.toInt())
+            setPadding(dp(16), dp(10), dp(16), 0)
+        }
+        box.addView(brightnessLabel)
+        val brightnessSeek = SeekBar(this).apply {
+            max = 100
+            progress = ((settings.overlayBrightness * 100).toInt() - 50).coerceIn(0, 100)
+            setPadding(dp(14), dp(2), dp(14), dp(2))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val percent = progress + 50
+                    brightnessLabel.text = "亮度：$percent%"
+                    settings.overlayBrightness = percent / 100f
+                    applyBrightness()
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        }
+        box.addView(brightnessSeek)
+
+        addItem("恢复默认亮度") {
+            settings.overlayBrightness = 1f
+            applyBrightness()
+            hideMenu()
+        }
+        addDivider()
+        addItem("回到右下角") {
+            moveToCorner()
+            hideMenu()
+        }
+        addItem("收起（挂到侧边）") {
+            collapseToSide()
+            hideMenu()
+        }
+        addItem("关闭桌宠") {
+            stopSelf()
+        }
+
+        val params = WindowManager.LayoutParams(
+            panelWidth,
+            panelHeight,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        ).apply {
+            gravity = Gravity.TOP or Gravity.START
+            val pet = petParams
+            x = if (pet != null && pet.x > panelWidth + dp(12)) {
+                pet.x - panelWidth - dp(8)
+            } else {
+                (pet?.x ?: 0) + (pet?.width ?: 0) + dp(8)
+            }
+            x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
+            y = (pet?.y ?: dp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
+        }
+
+        menuView = scroll
+        menuParams = params
+        runCatching { windowManager.addView(scroll, params) }
     }
 
     private fun fling(vx0: Float, vy0: Float) {
@@ -352,6 +615,45 @@ class PetOverlayService : Service() {
             AppVisibility.foreground.collect { foreground ->
                 petView?.visibility = if (foreground) View.GONE else View.VISIBLE
                 if (foreground) hideBubble()
+            }
+        }
+    }
+
+    private val autoChatRunnable = object : Runnable {
+        override fun run() {
+            maybeAutoChat()
+            handler.postDelayed(this, 60_000)
+        }
+    }
+
+    private fun scheduleAutoChat() {
+        handler.removeCallbacks(autoChatRunnable)
+        handler.postDelayed(autoChatRunnable, 60_000)
+    }
+
+    private fun maybeAutoChat() {
+        if (AppVisibility.foreground.value || autoChatBusy) return
+        val group = groupStore.groups().firstOrNull { it.autoChat } ?: return
+        val messages = groupStore.messages(group.id)
+        val now = System.currentTimeMillis()
+        val lastAt = messages.maxOfOrNull { it.at } ?: 0L
+        val interval = group.autoChatMinutes.coerceAtLeast(5) * 60_000L
+        if (now - lastAt < interval) return
+        val lastUserAt = messages.lastOrNull { it.role == ChatMessage.ROLE_USER }?.at ?: 0L
+        if (lastUserAt > 0 && now - lastUserAt < 5 * 60_000L) return
+
+        autoChatBusy = true
+        scope.launch {
+            try {
+                val message = groupEngine.autoMessage(group)
+                if (message != null) {
+                    groupStore.saveMessages(group.id, messages + message)
+                    showBubble("${message.senderName ?: ""}：${message.content}")
+                }
+            } catch (_: Exception) {
+                // Offline or API error: try again next tick.
+            } finally {
+                autoChatBusy = false
             }
         }
     }
