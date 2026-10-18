@@ -8,6 +8,7 @@ import com.dsh.companion.data.Character
 import com.dsh.companion.data.CharacterRepository
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.data.ChatStore
+import com.dsh.companion.data.Conversation
 import com.dsh.companion.data.Persona
 import com.dsh.companion.data.PersonaStore
 import com.dsh.companion.data.SettingsStore
@@ -65,6 +66,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _messages = MutableStateFlow<List<ChatMessage>>(emptyList())
     val messages: StateFlow<List<ChatMessage>> = _messages.asStateFlow()
 
+    private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
+    val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
+
+    private val _activeConversationId = MutableStateFlow<String?>(null)
+    val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
+
     private val _streaming = MutableStateFlow(false)
     val streaming: StateFlow<Boolean> = _streaming.asStateFlow()
 
@@ -113,7 +120,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     loadedFor = chosen.id
                     _activeId.value = chosen.id
                     settings.activePersonaId = chosen.id
-                    _messages.value = withContext(Dispatchers.IO) { chatStore.load(chosen.id) }
+                    val conversation = withContext(Dispatchers.IO) {
+                        chatStore.ensure(chosen.id, chosen.name)
+                    }
+                    _activeConversationId.value = conversation.id
+                    _messages.value = withContext(Dispatchers.IO) { chatStore.load(conversation.id) }
+                    _conversations.value = withContext(Dispatchers.IO) {
+                        chatStore.conversations(chosen.id)
+                    }
                 }
                 _activePersona.value = chosen
             }
@@ -122,11 +136,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setActive(id: String) {
         if (_activeId.value == id) return
+        val persona = personaStore.get(id) ?: return
+        sendJob?.cancel()
+        sendJob = null
+        _streaming.value = false
         _activeId.value = id
         settings.activePersonaId = id
         loadedFor = id
-        _messages.value = chatStore.load(id)
-        _activePersona.value = personaStore.get(id)
+        val conversation = chatStore.ensure(persona.id, persona.name)
+        _activeConversationId.value = conversation.id
+        _messages.value = chatStore.load(conversation.id)
+        _conversations.value = chatStore.conversations(persona.id)
+        _activePersona.value = persona
         _stageClip.value = "idle"
         PetBus.emit(PetEvent.Clip("idle", once = false))
     }
@@ -149,10 +170,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun deletePersona(id: String) {
         personaStore.delete(id)
-        chatStore.clear(id)
+        chatStore.conversations(id).forEach { chatStore.delete(it.id) }
         if (_activeId.value == id) {
             loadedFor = null
             _activeId.value = null
+            _activeConversationId.value = null
+            _conversations.value = emptyList()
             _messages.value = emptyList()
         }
     }
@@ -178,6 +201,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val text = raw.trim()
         if (text.isEmpty() || _streaming.value) return
         val persona = _activePersona.value ?: return
+        val conversationId = _activeConversationId.value ?: return
 
         if (persona.apiKey.isBlank()) {
             _notice.value = "还没有填 API Key。去「角色」里选一个角色，把 Key 填上。"
@@ -194,6 +218,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val history = _messages.value + user
 
         _messages.value = history + assistant
+        val firstUserMessage = history.count { it.role == ChatMessage.ROLE_USER } == 1
+        chatStore.touch(conversationId, if (firstUserMessage) text.take(18) else null)
+        _conversations.value = chatStore.conversations(persona.id)
         _streaming.value = true
         _stageClip.value = "thinking"
         PetBus.emit(PetEvent.Thinking)
@@ -230,7 +257,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 if (_stageClip.value == "error") _stageClip.value = "idle"
             } finally {
                 _streaming.value = false
-                chatStore.save(persona.id, _messages.value)
+                if (_activeConversationId.value == conversationId) {
+                    chatStore.save(conversationId, _messages.value)
+                    _conversations.value = chatStore.conversations(persona.id)
+                }
             }
         }
     }
@@ -247,13 +277,43 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun newChat() {
-        val id = _activePersona.value?.id ?: return
+        val persona = _activePersona.value ?: return
         sendJob?.cancel()
         sendJob = null
         _streaming.value = false
-        chatStore.clear(id)
+        val conversation = chatStore.create(persona.id, persona.name)
+        _activeConversationId.value = conversation.id
+        _conversations.value = chatStore.conversations(persona.id)
         _messages.value = emptyList()
         _stageClip.value = "idle"
+    }
+
+    fun switchConversation(conversationId: String) {
+        if (_activeConversationId.value == conversationId) return
+        val persona = _activePersona.value ?: return
+        sendJob?.cancel()
+        sendJob = null
+        _streaming.value = false
+        _activeConversationId.value = conversationId
+        _messages.value = chatStore.load(conversationId)
+        _conversations.value = chatStore.conversations(persona.id)
+        _stageClip.value = "idle"
+    }
+
+    fun deleteConversation(conversationId: String) {
+        val persona = _activePersona.value ?: return
+        chatStore.delete(conversationId)
+        var remaining = chatStore.conversations(persona.id)
+        if (remaining.isEmpty()) {
+            remaining = listOf(chatStore.create(persona.id, persona.name))
+        }
+        _conversations.value = remaining
+        if (_activeConversationId.value == conversationId) {
+            val next = remaining.first()
+            _activeConversationId.value = next.id
+            _messages.value = chatStore.load(next.id)
+            _stageClip.value = "idle"
+        }
     }
 
     fun playOnce(clip: String) {
