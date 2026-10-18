@@ -2,9 +2,14 @@ package com.dsh.companion.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -55,6 +60,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -64,6 +70,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -75,7 +83,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.MainViewModel
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.ui.components.CharacterStage
+import com.dsh.companion.ui.components.CharacterThumb
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -91,7 +102,8 @@ fun ChatScreen(
     val character by vm.activeCharacter.collectAsStateWithLifecycle()
     val messages by vm.messages.collectAsStateWithLifecycle()
     val streaming by vm.streaming.collectAsStateWithLifecycle()
-    val clip by vm.stageClip.collectAsStateWithLifecycle()
+    val bgColor by vm.chatBackgroundColor.collectAsStateWithLifecycle()
+    val bgImage by vm.chatBackgroundImage.collectAsStateWithLifecycle()
     val listening by vm.listening.collectAsStateWithLifecycle()
     val partial by vm.partial.collectAsStateWithLifecycle()
     val recording by vm.recording.collectAsStateWithLifecycle()
@@ -163,8 +175,13 @@ fun ChatScreen(
     }
 
     Box(Modifier.fillMaxSize()) {
+        ChatBackground(color = bgColor, imageUri = bgImage)
+
         Column(Modifier.fillMaxSize().imePadding()) {
             TopAppBar(
+                navigationIcon = {
+                    CharacterThumb(character = character, size = 40.dp)
+                },
                 title = {
                     Column {
                         Text(
@@ -215,44 +232,6 @@ fun ChatScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
             )
 
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(250.dp),
-            ) {
-                Canvas(Modifier.fillMaxSize()) {
-                    drawCircle(
-                        brush = Brush.radialGradient(
-                            colors = listOf(
-                                Color(0xFF3A63A8).copy(alpha = 0.30f),
-                                Color.Transparent,
-                            ),
-                            center = Offset(size.width / 2f, size.height * 0.58f),
-                            radius = size.minDimension * 0.72f,
-                        ),
-                        radius = size.minDimension * 0.72f,
-                        center = Offset(size.width / 2f, size.height * 0.58f),
-                    )
-                }
-
-                CharacterStage(
-                    character = character,
-                    clip = clip,
-                    modifier = Modifier.fillMaxSize(),
-                    onTap = { vm.playOnce("poke") },
-                    onDoubleTap = { vm.playOnce("tail") },
-                    onLongPress = { vm.playOnce("head_pat") },
-                )
-
-                if (persona == null) {
-                    Text(
-                        text = "还没有角色，点右上角去创建一个",
-                        modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
             if (persona != null && persona?.apiKey.isNullOrBlank()) {
                 Card(
                     onClick = onPersonas,
@@ -281,7 +260,7 @@ fun ChatScreen(
                 if (messages.isEmpty()) {
                     item {
                         Text(
-                            text = "说点什么吧。\n戳她、摸头、双击尾巴，她会有反应。",
+                            text = "说点什么吧。\n点右上角可以新建对话，历史在旁边的时钟里。",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 18.dp),
@@ -456,6 +435,35 @@ fun ChatScreen(
 private val chatTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 
 private fun formatTime(at: Long): String = chatTimeFormat.format(Date(at))
+
+@Composable
+private fun ChatBackground(color: Int, imageUri: String?) {
+    val context = LocalContext.current
+    val bitmap by produceState<Bitmap?>(null, imageUri) {
+        value = withContext(Dispatchers.IO) {
+            imageUri?.let { uri ->
+                runCatching {
+                    context.contentResolver.openInputStream(Uri.parse(uri))?.use {
+                        BitmapFactory.decodeStream(it)
+                    }
+                }.getOrNull()
+            }
+        }
+    }
+
+    Box(Modifier.fillMaxSize().background(Color(color))) {
+        val image = bitmap
+        if (image != null) {
+            Image(
+                bitmap = image.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.22f)))
+        }
+    }
+}
 
 @Composable
 private fun MessageBubble(message: ChatMessage, typing: Boolean) {
