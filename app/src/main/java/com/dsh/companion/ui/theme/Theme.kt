@@ -13,27 +13,31 @@ fun CompanionTheme(
     primary: Color = Color(0xFF8AB4FF),
     content: @Composable () -> Unit,
 ) {
-    val background = Color(0xFF0B1020)
+    val base = Color(0xFF070A12)
+    val background = lerp(base, primary, 0.10f)
+    val surface = lerp(background, primary, 0.06f)
+    val surfaceVariant = lerp(background, primary, 0.14f)
+    val outline = lerp(background, primary, 0.32f)
     val onPrimary = if (primary.luminance() > 0.55f) Color(0xFF07131F) else Color.White
 
     val colors = darkColorScheme(
         primary = primary,
         onPrimary = onPrimary,
-        primaryContainer = lerp(background, primary, 0.28f),
+        primaryContainer = lerp(background, primary, 0.30f),
         onPrimaryContainer = Color(0xFFEAF1FF),
         secondary = lerp(primary, Color.White, 0.18f),
         onSecondary = onPrimary,
-        secondaryContainer = lerp(background, primary, 0.18f),
+        secondaryContainer = lerp(background, primary, 0.20f),
         onSecondaryContainer = Color(0xFFEAF1FF),
         tertiary = lerp(primary, Color.White, 0.35f),
         background = background,
         onBackground = Color(0xFFE6ECF8),
-        surface = Color(0xFF101828),
+        surface = surface,
         onSurface = Color(0xFFE6ECF8),
-        surfaceVariant = Color(0xFF1A2438),
-        onSurfaceVariant = Color(0xFFB6C2D9),
-        outline = Color(0xFF39486A),
-        outlineVariant = Color(0xFF26324A),
+        surfaceVariant = surfaceVariant,
+        onSurfaceVariant = Color(0xFFC5D0E4),
+        outline = outline,
+        outlineVariant = lerp(background, primary, 0.20f),
         error = Color(0xFFFFB4AB),
         onError = Color(0xFF3B0907),
         errorContainer = Color(0xFF5A1A18),
