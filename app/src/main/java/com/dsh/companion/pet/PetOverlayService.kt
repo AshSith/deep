@@ -20,6 +20,8 @@ import android.provider.Settings
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
+import android.view.ScaleGestureDetector
+import android.view.VelocityTracker
 import android.view.View
 import android.view.WindowManager
 import android.widget.ImageView
@@ -61,6 +63,20 @@ class PetOverlayService : Service() {
     private var downY = 0f
     private var dragging = false
     private var revert: Runnable? = null
+
+    private var scaleDetector: ScaleGestureDetector? = null
+    private var velocityTracker: VelocityTracker? = null
+    private var flingRunnable: Runnable? = null
+    private var baseWidth = 0
+    private var baseHeight = 0
+
+    private var bubbleOffsetX = 0f
+    private var bubbleOffsetY = 0f
+    private var bubbleDownX = 0f
+    private var bubbleDownY = 0f
+    private var bubbleStartOffsetX = 0f
+    private var bubbleStartOffsetY = 0f
+    private var bubbleMoved = false
 
     private val pokeLines = listOf(
         "干嘛戳我…",
@@ -116,6 +132,8 @@ class PetOverlayService : Service() {
 
     override fun onDestroy() {
         scope.cancel()
+        flingRunnable?.let(handler::removeCallbacks)
+        velocityTracker?.recycle()
         handler.removeCallbacksAndMessages(null)
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
         petView?.let { runCatching { windowManager.removeView(it) } }
@@ -125,9 +143,11 @@ class PetOverlayService : Service() {
     }
 
     private fun showPet() {
-        val scale = settings.overlayScale
-        val width = dp((160 * scale).toInt())
-        val height = dp((180 * scale).toInt())
+        val scale = settings.overlayScale.coerceIn(0.4f, 3f)
+        baseWidth = dp(160)
+        baseHeight = dp(180)
+        val width = (baseWidth * scale).toInt().coerceAtLeast(dp(40))
+        val height = (baseHeight * scale).toInt().coerceAtLeast(dp(45))
 
         val image = ImageView(this).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -175,10 +195,33 @@ class PetOverlayService : Service() {
             }
         })
 
+        val scaleDetector = ScaleGestureDetector(this, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                val next = (settings.overlayScale * detector.scaleFactor).coerceIn(0.4f, 3f)
+                settings.overlayScale = next
+                val nextWidth = (baseWidth * next).toInt().coerceAtLeast(dp(40))
+                val nextHeight = (baseHeight * next).toInt().coerceAtLeast(dp(45))
+                params.width = nextWidth
+                params.height = nextHeight
+                params.x = params.x.coerceIn(0, max(0, metrics.widthPixels - nextWidth))
+                params.y = params.y.coerceIn(0, max(0, metrics.heightPixels - nextHeight))
+                runCatching { windowManager.updateViewLayout(image, params) }
+                moveBubble()
+                return true
+            }
+        })
+        this.scaleDetector = scaleDetector
+
         image.setOnTouchListener { _, event ->
             gesture.onTouchEvent(event)
+            scaleDetector.onTouchEvent(event)
+
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
+                    flingRunnable?.let(handler::removeCallbacks)
+                    flingRunnable = null
+                    velocityTracker?.recycle()
+                    velocityTracker = VelocityTracker.obtain().also { it.addMovement(event) }
                     startX = params.x
                     startY = params.y
                     downX = event.rawX
@@ -187,26 +230,40 @@ class PetOverlayService : Service() {
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - downX
-                    val dy = event.rawY - downY
-                    if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
-                        dragging = true
-                    }
-                    if (dragging) {
-                        params.x = (startX + dx.toInt()).coerceIn(0, max(0, metrics.widthPixels - width))
-                        params.y = (startY + dy.toInt()).coerceIn(0, max(0, metrics.heightPixels - height))
-                        runCatching { windowManager.updateViewLayout(image, params) }
-                        moveBubble()
+                    velocityTracker?.addMovement(event)
+                    if (!scaleDetector.isInProgress) {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (!dragging && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                            dragging = true
+                        }
+                        if (dragging) {
+                            params.x = (startX + dx.toInt())
+                                .coerceIn(0, max(0, metrics.widthPixels - params.width))
+                            params.y = (startY + dy.toInt())
+                                .coerceIn(0, max(0, metrics.heightPixels - params.height))
+                            runCatching { windowManager.updateViewLayout(image, params) }
+                            moveBubble()
+                        }
                     }
                 }
 
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                    velocityTracker?.addMovement(event)
                     if (dragging) {
                         settings.overlayX = params.x
                         settings.overlayY = params.y
-                        dragging = false
                         playClip("dragging_release", once = true)
+                        velocityTracker?.computeCurrentVelocity(1000)
+                        val vx = velocityTracker?.xVelocity ?: 0f
+                        val vy = velocityTracker?.yVelocity ?: 0f
+                        if (abs(vx) > 250f || abs(vy) > 250f) {
+                            fling(vx, vy)
+                        }
                     }
+                    dragging = false
+                    velocityTracker?.recycle()
+                    velocityTracker = null
                 }
             }
             true
@@ -215,6 +272,65 @@ class PetOverlayService : Service() {
         petView = image
         petParams = params
         windowManager.addView(image, params)
+    }
+
+    private fun fling(vx0: Float, vy0: Float) {
+        val image = petView ?: return
+        val params = petParams ?: return
+        val metrics = resources.displayMetrics
+        val maxX = max(0, metrics.widthPixels - params.width)
+        val maxY = max(0, metrics.heightPixels - params.height)
+        var x = params.x.toFloat()
+        var y = params.y.toFloat()
+        var vx = vx0.coerceIn(-6000f, 6000f)
+        var vy = vy0.coerceIn(-6000f, 6000f)
+        var last = System.nanoTime()
+        val gravity = 2200f
+
+        val runnable = object : Runnable {
+            override fun run() {
+                val now = System.nanoTime()
+                val dt = ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+                last = now
+
+                vy += gravity * dt
+                x += vx * dt
+                y += vy * dt
+
+                if (x < 0) {
+                    x = 0f
+                    vx = -vx * 0.62f
+                } else if (x > maxX.toFloat()) {
+                    x = maxX.toFloat()
+                    vx = -vx * 0.62f
+                }
+                if (y < 0) {
+                    y = 0f
+                    vy = -vy * 0.55f
+                } else if (y > maxY.toFloat()) {
+                    y = maxY.toFloat()
+                    vy = -vy * 0.55f
+                    vx *= 0.86f
+                }
+
+                params.x = x.toInt()
+                params.y = y.toInt()
+                runCatching { windowManager.updateViewLayout(image, params) }
+                moveBubble()
+
+                val resting = y >= (maxY - 1).toFloat() && abs(vy) < 60f && abs(vx) < 60f
+                if (!resting) {
+                    flingRunnable = this
+                    handler.postDelayed(this, 16)
+                } else {
+                    settings.overlayX = params.x
+                    settings.overlayY = params.y
+                    flingRunnable = null
+                }
+            }
+        }
+        flingRunnable = runnable
+        handler.post(runnable)
     }
 
     private fun observeEvents() {
@@ -264,21 +380,48 @@ class PetOverlayService : Service() {
         hideBubble()
         val view = TextView(this).apply {
             this.text = text.take(220)
-            setTextColor(0xFFEAF2FF.toInt())
+            setTextColor(settings.bubbleTextColor)
             textSize = 14f
             maxLines = 5
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(dp(14), dp(10), dp(14), dp(11))
-            background = GradientDrawable().apply {
-                cornerRadius = dp(16).toFloat()
-                setColor(0xF21B2438.toInt())
-                setStroke(dp(1), 0x33FFFFFF)
-            }
+            setPadding(dp(14), dp(10), dp(14), dp(18))
+            background = BubbleDrawable(
+                fillColor = settings.bubbleColor,
+                strokeColor = 0x33FFFFFF,
+                density = resources.displayMetrics.density,
+            )
             elevation = dp(8).toFloat()
-            isClickable = true
-            setOnClickListener {
-                hideBubble()
-                openChat()
+            setOnTouchListener { _, event ->
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        bubbleDownX = event.rawX
+                        bubbleDownY = event.rawY
+                        bubbleStartOffsetX = bubbleOffsetX
+                        bubbleStartOffsetY = bubbleOffsetY
+                        bubbleMoved = false
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - bubbleDownX
+                        val dy = event.rawY - bubbleDownY
+                        if (!bubbleMoved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
+                            bubbleMoved = true
+                        }
+                        if (bubbleMoved) {
+                            bubbleOffsetX = bubbleStartOffsetX + dx
+                            bubbleOffsetY = bubbleStartOffsetY + dy
+                            moveBubble()
+                        }
+                    }
+
+                    MotionEvent.ACTION_UP -> {
+                        if (!bubbleMoved) {
+                            hideBubble()
+                            openChat()
+                        }
+                    }
+                }
+                true
             }
         }
 
@@ -306,9 +449,12 @@ class PetOverlayService : Service() {
         val params = bubbleParams ?: return
         val pet = petParams ?: return
         val metrics = resources.displayMetrics
-        params.x = (pet.x + (pet.width - view.width) / 2)
+        params.x = (pet.x + (pet.width - view.width) / 2 + bubbleOffsetX)
+            .toInt()
             .coerceIn(0, max(0, metrics.widthPixels - view.width))
-        params.y = (pet.y - view.height - dp(8)).coerceAtLeast(0)
+        params.y = (pet.y - view.height + dp(14) + bubbleOffsetY)
+            .toInt()
+            .coerceAtLeast(0)
         runCatching { windowManager.updateViewLayout(view, params) }
     }
 
