@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.dsh.companion.data.Character
 import com.dsh.companion.data.CharacterRepository
 import com.dsh.companion.data.ChatMessage
+import com.dsh.companion.data.ChatPreview
 import com.dsh.companion.data.ChatStore
 import com.dsh.companion.data.Conversation
 import com.dsh.companion.data.Persona
@@ -69,6 +70,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _conversations = MutableStateFlow<List<Conversation>>(emptyList())
     val conversations: StateFlow<List<Conversation>> = _conversations.asStateFlow()
 
+    private val _chatPreviews = MutableStateFlow<List<ChatPreview>>(emptyList())
+    val chatPreviews: StateFlow<List<ChatPreview>> = _chatPreviews.asStateFlow()
+
     private val _activeConversationId = MutableStateFlow<String?>(null)
     val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
 
@@ -122,6 +126,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     init {
         speaker.init()
         _characters.value = characterRepository.list()
+        refreshChatPreviews()
 
         viewModelScope.launch {
             personaStore.personas.collect { list ->
@@ -165,6 +170,37 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _activePersona.value = persona
         _stageClip.value = "idle"
         PetBus.emit(PetEvent.Clip("idle", once = false))
+        refreshChatPreviews()
+    }
+
+    fun openConversation(conversationId: String) {
+        val conversation = chatStore.allConversations()
+            .firstOrNull { it.id == conversationId } ?: return
+        val persona = personaStore.get(conversation.personaId) ?: return
+        sendJob?.cancel()
+        sendJob = null
+        _streaming.value = false
+        _activeId.value = persona.id
+        settings.activePersonaId = persona.id
+        loadedFor = persona.id
+        _activeConversationId.value = conversation.id
+        _messages.value = chatStore.load(conversation.id)
+        _conversations.value = chatStore.conversations(persona.id)
+        _activePersona.value = persona
+        _stageClip.value = "idle"
+        PetBus.emit(PetEvent.Clip("idle", once = false))
+        refreshChatPreviews()
+    }
+
+    private fun refreshChatPreviews() {
+        val people = personaStore.personas.value
+        _chatPreviews.value = chatStore.allConversations().map { conversation ->
+            ChatPreview(
+                conversation = conversation,
+                persona = people.firstOrNull { it.id == conversation.personaId },
+                lastMessage = chatStore.load(conversation.id).lastOrNull(),
+            )
+        }
     }
 
     fun savePersona(persona: Persona) {
@@ -181,6 +217,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }
             PetBus.emit(PetEvent.Clip("idle", once = false))
         }
+        refreshChatPreviews()
     }
 
     fun deletePersona(id: String) {
@@ -193,6 +230,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _conversations.value = emptyList()
             _messages.value = emptyList()
         }
+        refreshChatPreviews()
     }
 
     fun refreshCharacters() {
@@ -290,6 +328,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     chatStore.save(conversationId, _messages.value)
                     _conversations.value = chatStore.conversations(persona.id)
                 }
+                refreshChatPreviews()
             }
         }
     }
@@ -315,6 +354,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _conversations.value = chatStore.conversations(persona.id)
         _messages.value = emptyList()
         _stageClip.value = "idle"
+        refreshChatPreviews()
     }
 
     fun switchConversation(conversationId: String) {
@@ -327,6 +367,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _messages.value = chatStore.load(conversationId)
         _conversations.value = chatStore.conversations(persona.id)
         _stageClip.value = "idle"
+        refreshChatPreviews()
     }
 
     fun deleteConversation(conversationId: String) {
@@ -343,6 +384,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             _messages.value = chatStore.load(next.id)
             _stageClip.value = "idle"
         }
+        refreshChatPreviews()
     }
 
     fun playOnce(clip: String) {
