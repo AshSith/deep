@@ -54,6 +54,15 @@ data class Persona(
 }
 
 @Serializable
+data class Conversation(
+    val id: String = UUID.randomUUID().toString(),
+    val personaId: String,
+    val title: String = "新对话",
+    val createdAt: Long = System.currentTimeMillis(),
+    val updatedAt: Long = System.currentTimeMillis(),
+)
+
+@Serializable
 data class ChatMessage(
     val id: String = UUID.randomUUID().toString(),
     val role: String,
