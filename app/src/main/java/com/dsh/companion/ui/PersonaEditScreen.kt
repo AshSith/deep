@@ -442,18 +442,20 @@ fun PersonaEditScreen(
             onDismissRequest = { showVoices = false },
             title = { Text("选择音色") },
             text = {
-                LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                    item {
-                        VoiceRow(
-                            label = "跟随系统默认",
-                            selected = voiceName == null,
-                            onClick = {
-                                voiceName = null
-                                showVoices = false
-                            },
-                        )
-                    }
-                    items(voices, key = { it.name }) { voice ->
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 420.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    VoiceRow(
+                        label = "跟随系统默认",
+                        selected = voiceName == null,
+                        onClick = {
+                            voiceName = null
+                            showVoices = false
+                        },
+                    )
+                    voices.forEach { voice ->
                         VoiceRow(
                             label = voice.label + if (voice.needsNetwork) " · 需联网" else "",
                             selected = voiceName == voice.name,
