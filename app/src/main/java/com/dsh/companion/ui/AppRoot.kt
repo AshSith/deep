@@ -86,7 +86,16 @@ fun AppRoot(vm: MainViewModel) {
                 )
             }
             composable("settings") {
-                SettingsScreen(vm)
+                SettingsScreen(
+                    vm = vm,
+                    onAppearance = { navController.navigate("appearance") },
+                )
+            }
+            composable("appearance") {
+                AppearanceScreen(
+                    vm = vm,
+                    onBack = { navController.popBackStack() },
+                )
             }
             composable("persona/{id}") { entry ->
                 PersonaEditScreen(
