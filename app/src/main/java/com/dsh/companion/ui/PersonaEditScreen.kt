@@ -85,28 +85,47 @@ fun PersonaEditScreen(
     var pitch by remember(base.id) { mutableStateOf(base.speechPitch) }
     var rate by remember(base.id) { mutableStateOf(base.speechRate) }
     var speak by remember(base.id) { mutableStateOf(base.speakReplies) }
+    var sttBaseUrl by remember(base.id) { mutableStateOf(base.sttBaseUrl) }
+    var sttApiKey by remember(base.id) { mutableStateOf(base.sttApiKey) }
+    var sttModel by remember(base.id) { mutableStateOf(base.sttModel) }
+    var ttsBaseUrl by remember(base.id) { mutableStateOf(base.ttsBaseUrl) }
+    var ttsApiKey by remember(base.id) { mutableStateOf(base.ttsApiKey) }
+    var ttsModel by remember(base.id) { mutableStateOf(base.ttsModel) }
+    var ttsVoice by remember(base.id) { mutableStateOf(base.ttsVoice) }
+    var ttsVoice2 by remember(base.id) { mutableStateOf(base.ttsVoice2) }
+    var ttsMix by remember(base.id) { mutableStateOf(base.ttsMix) }
     var showKey by remember { mutableStateOf(false) }
     var showVoices by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
     val selectedCharacter = characters.firstOrNull { it.id == characterId } ?: characters.firstOrNull()
 
+    fun draft(): Persona = base.copy(
+        name = name.trim().ifBlank { "未命名角色" },
+        characterId = selectedCharacter?.id ?: characterId,
+        systemPrompt = prompt,
+        baseUrl = baseUrl.trim().ifBlank { "https://api.deepseek.com/v1" },
+        apiKey = apiKey.trim(),
+        model = model.trim().ifBlank { "deepseek-chat" },
+        temperature = temperature,
+        maxTokens = maxTokens,
+        voiceName = voiceName,
+        speechPitch = pitch,
+        speechRate = rate,
+        speakReplies = speak,
+        sttBaseUrl = sttBaseUrl.trim(),
+        sttApiKey = sttApiKey.trim(),
+        sttModel = sttModel.trim().ifBlank { "whisper-1" },
+        ttsBaseUrl = ttsBaseUrl.trim(),
+        ttsApiKey = ttsApiKey.trim(),
+        ttsModel = ttsModel.trim().ifBlank { "tts-1" },
+        ttsVoice = ttsVoice.trim().ifBlank { "alloy" },
+        ttsVoice2 = ttsVoice2.trim(),
+        ttsMix = ttsMix,
+    )
+
     fun save() {
-        val draft = base.copy(
-            name = name.trim().ifBlank { "未命名角色" },
-            characterId = selectedCharacter?.id ?: characterId,
-            systemPrompt = prompt,
-            baseUrl = baseUrl.trim().ifBlank { "https://api.deepseek.com/v1" },
-            apiKey = apiKey.trim(),
-            model = model.trim().ifBlank { "deepseek-chat" },
-            temperature = temperature,
-            maxTokens = maxTokens,
-            voiceName = voiceName,
-            speechPitch = pitch,
-            speechRate = rate,
-            speakReplies = speak,
-        )
-        vm.savePersona(draft)
+        vm.savePersona(draft())
         onBack()
     }
 
@@ -249,7 +268,7 @@ fun PersonaEditScreen(
                         )
                     }
                     TextButton(onClick = { showVoices = true }) { Text("选择") }
-                    TextButton(onClick = { vm.previewVoice(voiceName, pitch, rate) }) { Text("试听") }
+                    TextButton(onClick = { vm.previewPersonaVoice(draft()) }) { Text("试听") }
                 }
 
                 if (!ttsReady) {
@@ -280,6 +299,96 @@ fun PersonaEditScreen(
                     }
                     Switch(checked = speak, onCheckedChange = { speak = it })
                 }
+
+                Text(
+                    text = "云端朗读（可选）",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 6.dp),
+                )
+                Text(
+                    text = "留空就用系统 TTS。填 OpenAI 兼容的 /audio/speech 接口后，音色、语速和混音都由云端决定；系统音高/音色就不再生效。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = ttsBaseUrl,
+                    onValueChange = { ttsBaseUrl = it },
+                    label = { Text("TTS API 地址") },
+                    supportingText = { Text("例如 https://api.openai.com/v1") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = ttsApiKey,
+                    onValueChange = { ttsApiKey = it },
+                    label = { Text("TTS API Key") },
+                    singleLine = true,
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = ttsModel,
+                    onValueChange = { ttsModel = it },
+                    label = { Text("TTS 模型") },
+                    supportingText = { Text("tts-1 / gpt-4o-mini-tts / 服务商模型名") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = ttsVoice,
+                    onValueChange = { ttsVoice = it },
+                    label = { Text("音色 1") },
+                    supportingText = { Text("alloy / nova / shimmer，或服务商给的克隆音色 ID") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = ttsVoice2,
+                    onValueChange = { ttsVoice2 = it },
+                    label = { Text("音色 2（可选）") },
+                    supportingText = { Text("填了就会把两个音色混在一起播；留空是单音色") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                if (ttsVoice2.isNotBlank()) {
+                    Text("混音比例 ${format(ttsMix)}（0 = 只有音色 1，1 = 只有音色 2）", style = MaterialTheme.typography.bodySmall)
+                    Slider(value = ttsMix, onValueChange = { ttsMix = it }, valueRange = 0f..1f)
+                }
+                TextButton(onClick = { vm.previewPersonaVoice(draft()) }) {
+                    Text("用当前设置试听")
+                }
+            }
+
+            Section(title = "语音识别（可选）") {
+                Text(
+                    text = "手机没有系统识别服务时，填一个 Whisper 兼容接口（OpenAI / 硅基流动 / Groq 等）。留空就用手机自带识别。DeepSeek 不支持音频接口。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = sttBaseUrl,
+                    onValueChange = { sttBaseUrl = it },
+                    label = { Text("STT API 地址") },
+                    supportingText = { Text("例如 https://api.openai.com/v1") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = sttApiKey,
+                    onValueChange = { sttApiKey = it },
+                    label = { Text("STT API Key") },
+                    singleLine = true,
+                    visualTransformation = if (showKey) VisualTransformation.None else PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = sttModel,
+                    onValueChange = { sttModel = it },
+                    label = { Text("STT 模型") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
 
             Section(title = "模型参数") {
