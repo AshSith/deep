@@ -98,7 +98,7 @@ class CharacterRepository(private val context: Context) {
                 if (ALLOWED.none { name.endsWith(it, ignoreCase = true) }) continue
                 val bytes = zip.readBytes()
                 total += bytes.size
-                if (total > MAX_TOTAL) throw IOException("角色包太大了（上限 120MB）")
+                if (total > MAX_TOTAL) throw IOException("角色包太大了（上限 300MB）")
                 entries[name] = bytes
             }
         }
@@ -194,6 +194,6 @@ class CharacterRepository(private val context: Context) {
 
     private companion object {
         val ALLOWED = listOf(".webp", ".png", ".json", ".md", ".txt")
-        const val MAX_TOTAL = 120L * 1024 * 1024
+        const val MAX_TOTAL = 300L * 1024 * 1024
     }
 }
