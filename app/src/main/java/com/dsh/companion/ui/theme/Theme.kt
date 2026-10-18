@@ -15,8 +15,13 @@ fun CompanionTheme(
     content: @Composable () -> Unit,
 ) {
     val isLight = primary.luminance() > 0.58f
-    val onPrimary = if (isLight) {
-        lerp(primary, Color.Black, 0.82f)
+    val accent = when {
+        isLight -> lerp(primary, Color.Black, 0.45f)
+        primary.luminance() < 0.22f -> lerp(primary, Color.White, 0.35f)
+        else -> primary
+    }
+    val onPrimary = if (accent.luminance() > 0.55f) {
+        lerp(accent, Color.Black, 0.82f)
     } else {
         Color.White
     }
@@ -29,15 +34,15 @@ fun CompanionTheme(
         val onVariant = lerp(primary, Color.Black, 0.52f)
         val outline = lerp(primary, Color.Black, 0.32f)
         lightColorScheme(
-            primary = primary,
+            primary = accent,
             onPrimary = onPrimary,
             primaryContainer = lerp(Color.White, primary, 0.42f),
             onPrimaryContainer = onBackground,
-            secondary = lerp(primary, Color.Black, 0.18f),
+            secondary = lerp(accent, Color.Black, 0.18f),
             onSecondary = Color.White,
             secondaryContainer = lerp(Color.White, primary, 0.34f),
             onSecondaryContainer = onBackground,
-            tertiary = lerp(primary, Color.Black, 0.30f),
+            tertiary = lerp(accent, Color.Black, 0.30f),
             background = background,
             onBackground = onBackground,
             surface = surface,
@@ -64,15 +69,15 @@ fun CompanionTheme(
         val variant = lerp(background, primary, 0.22f)
         val onBackground = Color(0xFFEAF0FB)
         darkColorScheme(
-            primary = primary,
+            primary = accent,
             onPrimary = onPrimary,
             primaryContainer = lerp(background, primary, 0.34f),
             onPrimaryContainer = Color(0xFFEAF1FF),
-            secondary = lerp(primary, Color.White, 0.18f),
+            secondary = lerp(accent, Color.White, 0.18f),
             onSecondary = onPrimary,
             secondaryContainer = lerp(background, primary, 0.24f),
             onSecondaryContainer = Color(0xFFEAF1FF),
-            tertiary = lerp(primary, Color.White, 0.35f),
+            tertiary = lerp(accent, Color.White, 0.35f),
             background = background,
             onBackground = onBackground,
             surface = surface,
