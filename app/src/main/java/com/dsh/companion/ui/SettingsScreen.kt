@@ -63,7 +63,7 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel) {
+fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
     val context = LocalContext.current
     val overlayEnabled by vm.overlayEnabled.collectAsStateWithLifecycle()
     val scale by vm.overlayScale.collectAsStateWithLifecycle()
@@ -223,62 +223,13 @@ fun SettingsScreen(vm: MainViewModel) {
             }
 
             item {
-                SettingsCard(title = "聊天背景") {
-                    Text("背景色", style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        chatBgColors.forEach { color ->
-                            ColorDot(
-                                color = color,
-                                selected = chatBgColor == color,
-                                onClick = { vm.setChatBackgroundColor(color) },
-                            )
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { backgroundPicker.launch(arrayOf("image/*")) }) {
-                            Text(if (chatBgImage == null) "选择图片" else "更换图片")
-                        }
-                        if (chatBgImage != null) {
-                            TextButton(onClick = { vm.setChatBackgroundImage(null) }) {
-                                Text("清除图片")
-                            }
-                        }
-                    }
+                SettingsCard(title = "外观") {
                     Text(
-                        text = "图片会铺满聊天背景，并加一层暗色遮罩保证文字可读。",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "主题色、聊天背景、桌宠气泡颜色，都在独立页面里调，不占设置空间。",
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                }
-            }
-
-            item {
-                SettingsCard(title = "桌宠气泡") {
-                    Text("气泡颜色", style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        bubbleColors.forEach { color ->
-                            ColorDot(
-                                color = color,
-                                selected = bubbleColor == color,
-                                onClick = { vm.setBubbleColor(color) },
-                            )
-                        }
-                    }
-                    Text("文字颜色", style = MaterialTheme.typography.bodySmall)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        bubbleTextColors.forEach { color ->
-                            ColorDot(
-                                color = color,
-                                selected = bubbleTextColor == color,
-                                onClick = { vm.setBubbleTextColor(color) },
-                            )
-                        }
-                    }
-                    Text(
-                        text = "改完下一次冒泡生效；气泡本身也可以拖动。",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    TextButton(onClick = onAppearance) { Text("外观自定义") }
                 }
             }
 
