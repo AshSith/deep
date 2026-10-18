@@ -9,12 +9,21 @@ android {
     namespace = "com.dsh.companion"
     compileSdk = 35
 
+    signingConfigs {
+        getByName("debug") {
+            storeFile = rootProject.file("keystore/dsh-debug.jks")
+            storePassword = "android"
+            keyAlias = "dsh"
+            keyPassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.dsh.companion"
         minSdk = 28
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.2.1"
     }
 
     buildTypes {
