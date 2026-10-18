@@ -33,7 +33,7 @@ private data class Tab(
 )
 
 private val tabs = listOf(
-    Tab("chat", "聊天", Icons.Default.Chat),
+    Tab("chats", "消息", Icons.Default.Chat),
     Tab("groups", "群聊", Icons.Default.Group),
     Tab("personas", "角色", Icons.Default.Person),
     Tab("settings", "设置", Icons.Default.Settings),
@@ -74,15 +74,24 @@ fun AppRoot(vm: MainViewModel) {
     ) { padding ->
         NavHost(
             navController = navController,
-            startDestination = "chat",
+            startDestination = "chats",
             modifier = Modifier.padding(padding),
         ) {
+            composable("chats") {
+                ChatListScreen(
+                    vm = vm,
+                    groupVm = groupVm,
+                    onOpenSingle = { navController.navigate("chat") },
+                    onOpenGroup = { id -> navController.navigate("group/$id") },
+                )
+            }
             composable("chat") {
                 ChatScreen(
                     vm = vm,
                     onPersonas = {
                         navController.navigate("personas") { launchSingleTop = true }
                     },
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("personas") {
