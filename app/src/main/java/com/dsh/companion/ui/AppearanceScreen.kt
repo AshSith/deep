@@ -7,6 +7,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -68,6 +69,21 @@ private enum class ColorTarget(val label: String) {
     BUBBLE("气泡颜色"),
     BUBBLE_TEXT("气泡文字"),
 }
+
+private val basicColors = listOf(
+    0xFFFF4D4F.toInt(),
+    0xFFFF9F43.toInt(),
+    0xFFFFD93D.toInt(),
+    0xFF52C41A.toInt(),
+    0xFF13C2C2.toInt(),
+    0xFF1890FF.toInt(),
+    0xFF722ED1.toInt(),
+    0xFFEB2F96.toInt(),
+    0xFFFFFFFF.toInt(),
+    0xFFBFBFBF.toInt(),
+    0xFF595959.toInt(),
+    0xFF000000.toInt(),
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -136,6 +152,9 @@ fun AppearanceScreen(vm: MainViewModel, onBack: () -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = { imagePicker.launch(arrayOf("image/*")) }) {
                         Text(if (chatBgImage == null) "选择背景图片" else "更换背景图片")
+                    }
+                    TextButton(onClick = { vm.setChatBackgroundColor(0) }) {
+                        Text("跟随主题")
                     }
                     if (chatBgImage != null) {
                         TextButton(onClick = { vm.setChatBackgroundImage(null) }) {
@@ -235,7 +254,7 @@ private fun ColorRow(color: Int, onPick: () -> Unit) {
         )
         Spacer(Modifier.width(12.dp))
         Text(
-            text = String.format("#%06X", color and 0xFFFFFF),
+            text = if (color == 0) "跟随主题" else String.format("#%06X", color and 0xFFFFFF),
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
@@ -331,6 +350,29 @@ private fun ColorPickerDialog(
                         center = Offset(x, size.height / 2f),
                         style = Stroke(1.dp.toPx()),
                     )
+                }
+
+                Spacer(Modifier.height(8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    basicColors.chunked(6).forEach { rowColors ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowColors.forEach { swatch ->
+                                Box(
+                                    Modifier
+                                        .size(24.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(swatch))
+                                        .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        .clickable {
+                                            val hsv = argbToHsv(swatch)
+                                            hue = hsv[0]
+                                            saturation = hsv[1]
+                                            value = hsv[2]
+                                        },
+                                )
+                            }
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(12.dp))
