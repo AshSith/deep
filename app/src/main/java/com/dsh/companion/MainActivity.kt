@@ -21,6 +21,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        AppVisibility.foreground.value = true
+    }
+
+    override fun onPause() {
+        AppVisibility.foreground.value = false
+        super.onPause()
+    }
+
     companion object {
         const val EXTRA_OPEN_CHAT = "com.dsh.companion.OPEN_CHAT"
     }
