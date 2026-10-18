@@ -8,13 +8,19 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -41,6 +47,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -60,6 +68,10 @@ fun SettingsScreen(vm: MainViewModel) {
     val overlayEnabled by vm.overlayEnabled.collectAsStateWithLifecycle()
     val scale by vm.overlayScale.collectAsStateWithLifecycle()
     val persona by vm.activePersona.collectAsStateWithLifecycle()
+    val chatBgColor by vm.chatBackgroundColor.collectAsStateWithLifecycle()
+    val chatBgImage by vm.chatBackgroundImage.collectAsStateWithLifecycle()
+    val bubbleColor by vm.bubbleColor.collectAsStateWithLifecycle()
+    val bubbleTextColor by vm.bubbleTextColor.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
@@ -110,6 +122,20 @@ fun SettingsScreen(vm: MainViewModel) {
             vm.importCharacter(uri) { message ->
                 scope.launch { snackbar.showSnackbar(message) }
             }
+        }
+    }
+
+    val backgroundPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            vm.setChatBackgroundImage(uri.toString())
         }
     }
 
@@ -185,7 +211,7 @@ fun SettingsScreen(vm: MainViewModel) {
                             value = scale,
                             onValueChange = { vm.setOverlayScale(it) },
                             onValueChangeFinished = { vm.restartOverlay() },
-                            valueRange = 0.7f..1.4f,
+                            valueRange = 0.4f..3.0f,
                         )
                         Text(
                             text = "有些手机会在后台杀掉悬浮窗，需要在系统设置里允许自启动、关闭电池优化。",
@@ -193,6 +219,66 @@ fun SettingsScreen(vm: MainViewModel) {
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+            }
+
+            item {
+                SettingsCard(title = "聊天背景") {
+                    Text("背景色", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        chatBgColors.forEach { color ->
+                            ColorDot(
+                                color = color,
+                                selected = chatBgColor == color,
+                                onClick = { vm.setChatBackgroundColor(color) },
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { backgroundPicker.launch(arrayOf("image/*")) }) {
+                            Text(if (chatBgImage == null) "选择图片" else "更换图片")
+                        }
+                        if (chatBgImage != null) {
+                            TextButton(onClick = { vm.setChatBackgroundImage(null) }) {
+                                Text("清除图片")
+                            }
+                        }
+                    }
+                    Text(
+                        text = "图片会铺满聊天背景，并加一层暗色遮罩保证文字可读。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            item {
+                SettingsCard(title = "桌宠气泡") {
+                    Text("气泡颜色", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        bubbleColors.forEach { color ->
+                            ColorDot(
+                                color = color,
+                                selected = bubbleColor == color,
+                                onClick = { vm.setBubbleColor(color) },
+                            )
+                        }
+                    }
+                    Text("文字颜色", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        bubbleTextColors.forEach { color ->
+                            ColorDot(
+                                color = color,
+                                selected = bubbleTextColor == color,
+                                onClick = { vm.setBubbleTextColor(color) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = "改完下一次冒泡生效；气泡本身也可以拖动。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
@@ -277,6 +363,46 @@ fun SettingsScreen(vm: MainViewModel) {
             }
         }
     }
+}
+
+private val chatBgColors = listOf(
+    0xFF0B1020.toInt(),
+    0xFF172033.toInt(),
+    0xFF2A1B2E.toInt(),
+    0xFF102A26.toInt(),
+    0xFF2E2414.toInt(),
+    0xFF1A1A1A.toInt(),
+)
+
+private val bubbleColors = listOf(
+    0xF21B2438.toInt(),
+    0xF2000000.toInt(),
+    0xF2FFE4EC.toInt(),
+    0xF2DDF4E4.toInt(),
+    0xF2FFFFFF.toInt(),
+)
+
+private val bubbleTextColors = listOf(
+    0xFFEAF2FF.toInt(),
+    0xFF1A1A1A.toInt(),
+    0xFF3A2A1A.toInt(),
+    0xFF1B2438.toInt(),
+)
+
+@Composable
+private fun ColorDot(color: Int, selected: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(Color(color))
+            .border(
+                width = 2.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                shape = CircleShape,
+            )
+            .clickable(onClick = onClick),
+    )
 }
 
 @Composable
