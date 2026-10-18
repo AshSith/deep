@@ -27,6 +27,7 @@ import android.widget.TextView
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import com.dsh.companion.AppVisibility
 import com.dsh.companion.MainActivity
 import com.dsh.companion.R
 import com.dsh.companion.data.CharacterRepository
@@ -84,6 +85,7 @@ class PetOverlayService : Service() {
         showPet()
         playClip("idle", once = false)
         observeEvents()
+        observeAppVisibility()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -209,6 +211,15 @@ class PetOverlayService : Service() {
         }
     }
 
+    private fun observeAppVisibility() {
+        scope.launch {
+            AppVisibility.foreground.collect { foreground ->
+                petView?.visibility = if (foreground) View.GONE else View.VISIBLE
+                if (foreground) hideBubble()
+            }
+        }
+    }
+
     private fun playClip(name: String, once: Boolean) {
         val persona = personas.get(settings.activePersonaId) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
@@ -295,11 +306,11 @@ class PetOverlayService : Service() {
         runCatching { startActivity(intent) }
     }
 
+    @Suppress("DEPRECATION")
     private fun overlayType(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
         } else {
-            @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
         }
     }
