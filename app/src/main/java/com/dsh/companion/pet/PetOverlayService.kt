@@ -14,6 +14,7 @@ import android.graphics.ColorMatrixColorFilter
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
@@ -296,6 +297,7 @@ class PetOverlayService : Service() {
         petView = image
         petParams = params
         windowManager.addView(image, params)
+        petView?.visibility = if (AppVisibility.foreground.value) View.GONE else View.VISIBLE
         applyBrightness()
         applyFlip()
     }
@@ -719,7 +721,11 @@ class PetOverlayService : Service() {
         scope.launch {
             AppVisibility.foreground.collect { foreground ->
                 petView?.visibility = if (foreground) View.GONE else View.VISIBLE
-                if (foreground) hideBubble()
+                if (foreground) {
+                    hideBubble()
+                } else if (petView?.drawable == null) {
+                    playClip("idle", once = false)
+                }
             }
         }
     }
@@ -766,10 +772,18 @@ class PetOverlayService : Service() {
     private fun playClip(name: String, once: Boolean) {
         val persona = personas.get(settings.activePersonaId) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
-        val drawable = characters.loadClip(character, name) ?: return
+        val drawable = characters.loadClip(character, name)
+            ?: characters.previewBitmap(character)?.let { BitmapDrawable(resources, it) }
+            ?: characters.list().firstOrNull { it.isBuiltIn }?.let { fallback ->
+                characters.loadClip(fallback, name)
+            }
+            ?: return
 
         petView?.setImageDrawable(drawable)
-        (drawable as? AnimatedImageDrawable)?.start()
+        if (drawable is AnimatedImageDrawable) drawable.start()
+        if (!AppVisibility.foreground.value) {
+            petView?.visibility = View.VISIBLE
+        }
 
         revert?.let(handler::removeCallbacks)
         revert = null
@@ -784,6 +798,7 @@ class PetOverlayService : Service() {
     }
 
     private fun showBubble(text: String) {
+        if (AppVisibility.foreground.value) return
         hideBubble()
         val view = TextView(this).apply {
             this.text = text.take(220)
