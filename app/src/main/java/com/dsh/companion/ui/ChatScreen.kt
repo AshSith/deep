@@ -31,6 +31,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.History
@@ -96,6 +97,7 @@ import java.util.Locale
 fun ChatScreen(
     vm: MainViewModel,
     onPersonas: () -> Unit,
+    onBack: () -> Unit,
 ) {
     val context = LocalContext.current
     val persona by vm.activePersona.collectAsStateWithLifecycle()
@@ -180,27 +182,32 @@ fun ChatScreen(
         Column(Modifier.fillMaxSize().imePadding()) {
             TopAppBar(
                 navigationIcon = {
-                    CharacterThumb(character = character, size = 40.dp)
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "返回消息列表")
+                    }
                 },
                 title = {
-                    Column {
-                        Text(
-                            text = persona?.name ?: "DSH 伴侣",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Text(
-                            text = when {
-                                streaming -> "思考中…"
-                                recording -> "录音中…"
-                                listening -> "在听…"
-                                persona == null -> "还没有角色"
-                                persona?.apiKey.isNullOrBlank() -> "还没填 API Key"
-                                else -> "在线 · ${persona?.model.orEmpty()}"
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CharacterThumb(character = character, size = 34.dp)
+                        Column(Modifier.padding(start = 8.dp)) {
+                            Text(
+                                text = persona?.name ?: "DSH 伴侣",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            Text(
+                                text = when {
+                                    streaming -> "思考中…"
+                                    recording -> "录音中…"
+                                    listening -> "在听…"
+                                    persona == null -> "还没有角色"
+                                    persona?.apiKey.isNullOrBlank() -> "还没填 API Key"
+                                    else -> "在线 · ${persona?.model.orEmpty()}"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
                     }
                 },
                 actions = {
