@@ -305,7 +305,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 updateMessage(assistant.id) { it.copy(content = reply) }
                 _stageClip.value = "success"
                 PetBus.emit(PetEvent.Success)
-                PetBus.emit(PetEvent.Say(reply))
+                if (!AppVisibility.foreground.value) {
+                    PetBus.emit(PetEvent.Say(reply))
+                }
                 if (persona.speakReplies) speakReply(persona, reply)
 
                 delay(1100)
