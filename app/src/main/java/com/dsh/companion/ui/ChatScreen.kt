@@ -82,14 +82,17 @@ fun ChatScreen(
     val clip by vm.stageClip.collectAsStateWithLifecycle()
     val listening by vm.listening.collectAsStateWithLifecycle()
     val partial by vm.partial.collectAsStateWithLifecycle()
+    val recording by vm.recording.collectAsStateWithLifecycle()
+    val notice by vm.notice.collectAsStateWithLifecycle()
+    val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
 
     var input by rememberSaveable { mutableStateOf("") }
     val listState = rememberLazyListState()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val beginListening: () -> Unit = {
-        vm.startListening(
+    val beginVoice: () -> Unit = {
+        vm.beginVoiceInput(
             onPartial = { input = it },
             onFinal = { text ->
                 input = ""
@@ -105,7 +108,7 @@ fun ChatScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (granted) {
-            beginListening()
+            beginVoice()
         } else {
             scope.launch { snackbar.showSnackbar("需要麦克风权限才能语音输入") }
         }
@@ -121,6 +124,17 @@ fun ChatScreen(
 
     LaunchedEffect(partial) {
         if (listening && partial.isNotBlank()) input = partial
+    }
+
+    LaunchedEffect(notice) {
+        notice?.let {
+            snackbar.showSnackbar(it)
+            vm.clearNotice()
+        }
+    }
+
+    LaunchedEffect(voiceMessage) {
+        voiceMessage?.let { snackbar.showSnackbar(it) }
     }
 
     LaunchedEffect(messages.size, messages.lastOrNull()?.content?.length, streaming) {
@@ -146,6 +160,7 @@ fun ChatScreen(
                         Text(
                             text = when {
                                 streaming -> "思考中…"
+                                recording -> "录音中…"
                                 listening -> "在听…"
                                 persona == null -> "还没有角色"
                                 persona?.apiKey.isNullOrBlank() -> "还没填 API Key"
@@ -283,16 +298,26 @@ fun ChatScreen(
                             Manifest.permission.RECORD_AUDIO,
                         ) == PackageManager.PERMISSION_GRANTED
                         when {
+                            recording -> vm.finishVoiceInput(
+                                onFinal = { text ->
+                                    input = ""
+                                    vm.send(text)
+                                },
+                                onError = { message ->
+                                    scope.launch { snackbar.showSnackbar(message) }
+                                },
+                            )
+
                             listening -> vm.stopListening()
-                            granted -> beginListening()
+                            granted -> beginVoice()
                             else -> micPermission.launch(Manifest.permission.RECORD_AUDIO)
                         }
                     },
                 ) {
                     Icon(
-                        imageVector = if (listening) Icons.Default.Stop else Icons.Default.Mic,
+                        imageVector = if (recording || listening) Icons.Default.Stop else Icons.Default.Mic,
                         contentDescription = "语音输入",
-                        tint = if (listening) {
+                        tint = if (recording || listening) {
                             MaterialTheme.colorScheme.error
                         } else {
                             MaterialTheme.colorScheme.onSurfaceVariant
@@ -307,7 +332,14 @@ fun ChatScreen(
                         .weight(1f)
                         .padding(horizontal = 6.dp),
                     placeholder = {
-                        Text(if (listening) "在听…" else "跟她说点什么")
+                        Text(
+                            when {
+                                recording -> "录音中… 再点一次结束"
+                                listening -> "在听…"
+                                partial == "识别中…" -> "识别中…"
+                                else -> "跟她说点什么"
+                            }
+                        )
                     },
                     maxLines = 4,
                     shape = RoundedCornerShape(24.dp),
