@@ -25,8 +25,22 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt(KEY_Y, -1)
         set(value) = prefs.edit().putInt(KEY_Y, value).apply()
 
+    var overlayBrightness: Float
+        get() = prefs.getFloat(KEY_BRIGHTNESS, 1f)
+        set(value) = prefs.edit().putFloat(KEY_BRIGHTNESS, value.coerceIn(0.5f, 1.5f)).apply()
+
+    var overlayFlipped: Boolean
+        get() = prefs.getBoolean(KEY_FLIPPED, false)
+        set(value) = prefs.edit().putBoolean(KEY_FLIPPED, value).apply()
+
+    var tapResponds: Boolean
+        get() = prefs.getBoolean(KEY_TAP_RESPONDS, true)
+        set(value) = prefs.edit().putBoolean(KEY_TAP_RESPONDS, value).apply()
+
     var chatBackgroundColor: Int
-        get() = prefs.getInt(KEY_CHAT_BG_COLOR, 0xFF0B1020.toInt())
+        get() = prefs.getInt(KEY_CHAT_BG_COLOR, 0).let {
+            if (it == 0xFF0B1020.toInt()) 0 else it
+        }
         set(value) = prefs.edit().putInt(KEY_CHAT_BG_COLOR, value).apply()
 
     var themeColor: Int
@@ -55,6 +69,9 @@ class SettingsStore(context: Context) {
         const val KEY_SCALE = "overlay_scale"
         const val KEY_X = "overlay_x"
         const val KEY_Y = "overlay_y"
+        const val KEY_BRIGHTNESS = "overlay_brightness"
+        const val KEY_FLIPPED = "overlay_flipped"
+        const val KEY_TAP_RESPONDS = "tap_responds"
         const val KEY_CHAT_BG_COLOR = "chat_bg_color"
         const val KEY_THEME_COLOR = "theme_color"
         const val KEY_CHAT_BG_IMAGE = "chat_bg_image"
