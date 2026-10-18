@@ -62,6 +62,17 @@ class PetOverlayService : Service() {
     private var dragging = false
     private var revert: Runnable? = null
 
+    private val pokeLines = listOf(
+        "干嘛戳我…",
+        "在呢在呢。",
+        "别戳了，痒。",
+        "要摸摸头吗？",
+        "再戳就咬你。",
+        "今天也一起待着吧。",
+        "戳一下就够了哦。",
+        "我在看你在干嘛。",
+    )
+
     override fun onCreate() {
         super.onCreate()
         createChannel()
@@ -86,6 +97,11 @@ class PetOverlayService : Service() {
         playClip("idle", once = false)
         observeEvents()
         observeAppVisibility()
+        handler.postDelayed({
+            if (!AppVisibility.foreground.value) {
+                showBubble("我在这儿。点一下戳我，双击打开聊天。")
+            }
+        }, 1600)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -141,17 +157,21 @@ class PetOverlayService : Service() {
             override fun onDown(e: MotionEvent): Boolean = true
 
             override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                if (!dragging) openChat()
+                if (!dragging) {
+                    playClip("poke", once = true)
+                    showBubble(pokeLines.random())
+                }
                 return true
             }
 
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                playClip("tail", once = true)
+                if (!dragging) openChat()
                 return true
             }
 
             override fun onLongPress(e: MotionEvent) {
                 playClip("head_pat", once = true)
+                showBubble("呼噜呼噜…")
             }
         })
 
@@ -255,6 +275,11 @@ class PetOverlayService : Service() {
                 setStroke(dp(1), 0x33FFFFFF)
             }
             elevation = dp(8).toFloat()
+            isClickable = true
+            setOnClickListener {
+                hideBubble()
+                openChat()
+            }
         }
 
         val params = WindowManager.LayoutParams(
@@ -262,7 +287,6 @@ class PetOverlayService : Service() {
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
