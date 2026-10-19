@@ -119,6 +119,9 @@ class GroupChatEngine(context: Context) {
                     ChatMessage.ROLE_USER -> ChatMessage(
                         role = ChatMessage.ROLE_USER,
                         content = message.content,
+                        attachmentUri = message.attachmentUri,
+                        attachmentType = message.attachmentType,
+                        attachmentName = message.attachmentName,
                     )
 
                     ChatMessage.ROLE_ASSISTANT -> if (message.error) {
@@ -127,6 +130,9 @@ class GroupChatEngine(context: Context) {
                         ChatMessage(
                             role = ChatMessage.ROLE_ASSISTANT,
                             content = "${message.senderName ?: "成员"}：${message.content}",
+                            attachmentUri = message.attachmentUri,
+                            attachmentType = message.attachmentType,
+                            attachmentName = message.attachmentName,
                         )
                     }
 
