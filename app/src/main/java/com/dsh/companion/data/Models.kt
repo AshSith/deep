@@ -13,6 +13,7 @@ data class Persona(
     val baseUrl: String = "https://api.deepseek.com/v1",
     val apiKey: String = "",
     val model: String = "deepseek-chat",
+    val visionEnabled: Boolean = false,
     val temperature: Float = 0.85f,
     val maxTokens: Int = 400,
     val voiceName: String? = null,
