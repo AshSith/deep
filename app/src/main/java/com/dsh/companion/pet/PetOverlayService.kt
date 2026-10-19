@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
@@ -21,6 +22,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.DisplayMetrics
 import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
@@ -28,6 +30,7 @@ import android.view.ScaleGestureDetector
 import android.view.VelocityTracker
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -53,6 +56,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.random.Random
 
 class PetOverlayService : Service() {
@@ -93,6 +97,10 @@ class PetOverlayService : Service() {
     private var bubbleStartOffsetX = 0f
     private var bubbleStartOffsetY = 0f
     private var bubbleMoved = false
+    private var bubbleConversationId: String? = null
+    private var bubbleGroupId: String? = null
+    private var bubblePersonaId: String? = null
+    private var lastBubbleTap = 0L
 
     private var menuView: View? = null
     private var menuParams: WindowManager.LayoutParams? = null
@@ -136,6 +144,7 @@ class PetOverlayService : Service() {
         observeEvents()
         observeAppVisibility()
         scheduleAutoChat()
+        scheduleAutonomousAction()
         handler.postDelayed({
             if (!AppVisibility.foreground.value) {
                 showBubble("我在这儿。点一下戳我，双击打开聊天。")
@@ -148,7 +157,32 @@ class PetOverlayService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_RESET_POSITION) {
+            moveToCorner()
+            return START_STICKY
+        }
         return START_STICKY
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val params = petParams ?: return
+        val bounds = boundsFor(params.width, params.height)
+        val x = if (settings.overlayXF >= 0f && settings.overlayYF >= 0f) {
+            bounds[0] + (settings.overlayXF * (bounds[1] - bounds[0])).toInt()
+        } else {
+            params.x
+        }
+        val y = if (settings.overlayXF >= 0f && settings.overlayYF >= 0f) {
+            bounds[2] + (settings.overlayYF * (bounds[3] - bounds[2])).toInt()
+        } else {
+            params.y
+        }
+        params.x = clampX(x, params.width)
+        params.y = clampY(y, params.height)
+        petView?.let { runCatching { windowManager.updateViewLayout(it, params) } }
+        persistPosition()
+        moveBubble()
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
@@ -156,6 +190,7 @@ class PetOverlayService : Service() {
     override fun onDestroy() {
         scope.cancel()
         handler.removeCallbacks(autoChatRunnable)
+        handler.removeCallbacks(autonomousActionRunnable)
         flingRunnable?.let(handler::removeCallbacks)
         velocityTracker?.recycle()
         menuView?.let { runCatching { windowManager.removeView(it) } }
@@ -182,7 +217,8 @@ class PetOverlayService : Service() {
             contentDescription = "桌宠"
         }
 
-        val metrics = resources.displayMetrics
+        val area = safeArea()
+        val bounds = boundsFor(width, height, area)
         val params = WindowManager.LayoutParams(
             width,
             height,
@@ -193,8 +229,18 @@ class PetOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            x = if (settings.overlayX >= 0) settings.overlayX else metrics.widthPixels - width - dp(6)
-            y = if (settings.overlayY >= 0) settings.overlayY else (metrics.heightPixels * 0.32f).toInt()
+            x = when {
+                settings.overlayXF >= 0f && settings.overlayYF >= 0f ->
+                    bounds[0] + (settings.overlayXF * (bounds[1] - bounds[0])).toInt()
+                settings.overlayX >= 0 -> settings.overlayX
+                else -> area.right - width
+            }
+            y = when {
+                settings.overlayXF >= 0f && settings.overlayYF >= 0f ->
+                    bounds[2] + (settings.overlayYF * (bounds[3] - bounds[2])).toInt()
+                settings.overlayY >= 0 -> settings.overlayY
+                else -> area.bottom - height
+            }
             x = clampX(x, width)
             y = clampY(y, height)
         }
@@ -229,6 +275,10 @@ class PetOverlayService : Service() {
             override fun onScale(detector: ScaleGestureDetector): Boolean {
                 applyScale(settings.overlayScale * detector.scaleFactor)
                 return true
+            }
+
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                persistPosition()
             }
         })
         this.scaleDetector = scaleDetector
@@ -275,8 +325,7 @@ class PetOverlayService : Service() {
                 MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                     velocityTracker?.addMovement(event)
                     if (dragging) {
-                        settings.overlayX = params.x
-                        settings.overlayY = params.y
+                        persistPosition()
                         playClip("dragging_release", once = true)
                         velocityTracker?.computeCurrentVelocity(1000)
                         val vx = velocityTracker?.xVelocity ?: 0f
@@ -300,6 +349,7 @@ class PetOverlayService : Service() {
         petView?.visibility = if (AppVisibility.foreground.value) View.GONE else View.VISIBLE
         applyBrightness()
         applyFlip()
+        persistPosition()
     }
 
     private fun applyScale(value: Float) {
@@ -331,12 +381,11 @@ class PetOverlayService : Service() {
     private fun moveToCorner() {
         val params = petParams ?: return
         val image = petView ?: return
-        val metrics = resources.displayMetrics
-        params.x = metrics.widthPixels - params.width
-        params.y = metrics.heightPixels - params.height
+        val area = safeArea()
+        params.x = clampX(area.right - params.width, params.width)
+        params.y = clampY(area.bottom - params.height, params.height)
         runCatching { windowManager.updateViewLayout(image, params) }
-        settings.overlayX = params.x
-        settings.overlayY = params.y
+        persistPosition()
         collapsed = false
         moveBubble()
     }
@@ -344,12 +393,11 @@ class PetOverlayService : Service() {
     private fun collapseToSide() {
         val params = petParams ?: return
         val image = petView ?: return
-        val metrics = resources.displayMetrics
-        params.x = metrics.widthPixels - edgeMargin()
-        params.y = clampY((metrics.heightPixels * 0.65f).toInt(), params.height)
+        val area = safeArea()
+        params.x = clampX(area.right - visibleX(params.width), params.width)
+        params.y = clampY((area.top + area.bottom) / 2 - params.height / 2, params.height)
         runCatching { windowManager.updateViewLayout(image, params) }
-        settings.overlayX = params.x
-        settings.overlayY = params.y
+        persistPosition()
         collapsed = true
         moveBubble()
     }
@@ -639,6 +687,20 @@ class PetOverlayService : Service() {
         "stocking" -> "丝袜"
         "fox_nap" -> "狐狸打盹"
         "bed_sleep" -> "床上睡觉"
+        "wave" -> "挥手"
+        "sign" -> "举牌"
+        "work" -> "工作"
+        "panic" -> "慌张"
+        "tea" -> "喝茶"
+        "wipe" -> "擦汗"
+        "stretch" -> "伸懒腰"
+        "hug" -> "抱尾巴"
+        "nap" -> "打盹"
+        "pout" -> "鼓脸"
+        "dizzy" -> "头晕"
+        "peek" -> "偷看"
+        "sigh" -> "叹气"
+        "tail_wag" -> "摇尾巴"
         else -> name
     }
 
@@ -646,10 +708,11 @@ class PetOverlayService : Service() {
         val image = petView ?: return
         val params = petParams ?: return
         val metrics = resources.displayMetrics
-        val minX = -params.width + edgeMargin()
-        val maxX = metrics.widthPixels - edgeMargin()
-        val minY = -params.height + edgeMargin()
-        val maxY = metrics.heightPixels - edgeMargin()
+        val bounds = boundsFor(params.width, params.height)
+        val minX = bounds[0]
+        val maxX = bounds[1]
+        val minY = bounds[2]
+        val maxY = bounds[3]
         var x = params.x.toFloat()
         var y = params.y.toFloat()
         var vx = vx0.coerceIn(-6000f, 6000f)
@@ -693,8 +756,7 @@ class PetOverlayService : Service() {
                     flingRunnable = this
                     handler.postDelayed(this, 16)
                 } else {
-                    settings.overlayX = params.x
-                    settings.overlayY = params.y
+                    persistPosition()
                     flingRunnable = null
                 }
             }
@@ -707,11 +769,17 @@ class PetOverlayService : Service() {
         scope.launch {
             PetBus.events.collect { event ->
                 when (event) {
-                    is PetEvent.Say -> showBubble(event.text)
+                    is PetEvent.Say -> showBubble(
+                        text = event.text,
+                        conversationId = event.conversationId,
+                        personaId = event.personaId,
+                        groupId = event.groupId,
+                    )
                     is PetEvent.Clip -> playClip(event.name, event.once)
                     PetEvent.Thinking -> playClip("thinking", once = false)
                     PetEvent.Success -> playClip("success", once = true)
                     PetEvent.Error -> playClip("error", once = true)
+                    PetEvent.MotionFrequencyChanged -> scheduleAutonomousAction()
                 }
             }
         }
@@ -728,6 +796,42 @@ class PetOverlayService : Service() {
                 }
             }
         }
+    }
+
+    private val autonomousActionRunnable = object : Runnable {
+        override fun run() {
+            performAutonomousAction()
+            scheduleAutonomousAction()
+        }
+    }
+
+    private fun scheduleAutonomousAction() {
+        handler.removeCallbacks(autonomousActionRunnable)
+        val interval = when (settings.desktopMotionFrequency) {
+            0 -> 0L
+            1 -> 5 * 60_000L
+            2 -> 2 * 60_000L
+            else -> 45_000L
+        }
+        if (interval > 0) handler.postDelayed(autonomousActionRunnable, interval)
+    }
+
+    private fun performAutonomousAction() {
+        if (AppVisibility.foreground.value || dragging || menuView != null) return
+        val clip = autonomousClip() ?: return
+        playClip(clip, once = true)
+    }
+
+    private fun autonomousClip(): String? {
+        val persona = personas.get(settings.activePersonaId) ?: personas.first()
+        val character = characters.get(persona?.characterId) ?: return null
+        val clips = character.meta.clips.keys
+        val preferred = listOf(
+            "wave", "stretch", "tea", "head_pat", "tail", "hug",
+            "nap", "shy", "dance", "peek", "sigh", "pout", "eat_token",
+        )
+        val available = preferred.filter { it in clips }
+        return (available.ifEmpty { clips.toList() }).randomOrNull()
     }
 
     private val autoChatRunnable = object : Runnable {
@@ -759,7 +863,10 @@ class PetOverlayService : Service() {
                 val message = groupEngine.autoMessage(group)
                 if (message != null) {
                     groupStore.saveMessages(group.id, messages + message)
-                    showBubble("${message.senderName ?: ""}：${message.content}")
+                    showBubble(
+                        text = "${message.senderName ?: ""}：${message.content}",
+                        groupId = group.id,
+                    )
                 }
             } catch (_: Exception) {
                 // Offline or API error: try again next tick.
@@ -797,8 +904,16 @@ class PetOverlayService : Service() {
         }
     }
 
-    private fun showBubble(text: String) {
+    private fun showBubble(
+        text: String,
+        conversationId: String? = null,
+        personaId: String? = null,
+        groupId: String? = null,
+    ) {
         if (AppVisibility.foreground.value) return
+        bubbleConversationId = conversationId
+        bubblePersonaId = personaId
+        bubbleGroupId = groupId
         hideBubble()
         val view = TextView(this).apply {
             this.text = text.take(220)
@@ -838,8 +953,14 @@ class PetOverlayService : Service() {
 
                     MotionEvent.ACTION_UP -> {
                         if (!bubbleMoved) {
-                            hideBubble()
-                            openChat()
+                            val now = System.currentTimeMillis()
+                            if (now - lastBubbleTap in 1..350) {
+                                lastBubbleTap = 0L
+                                hideBubble()
+                                openChat()
+                            } else {
+                                lastBubbleTap = now
+                            }
                         }
                     }
                 }
@@ -894,6 +1015,9 @@ class PetOverlayService : Service() {
         val intent = Intent(this, MainActivity::class.java).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
             putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
+            bubbleConversationId?.let { putExtra(MainActivity.EXTRA_OPEN_CONVERSATION, it) }
+            bubbleGroupId?.let { putExtra(MainActivity.EXTRA_OPEN_GROUP, it) }
+            bubblePersonaId?.let { putExtra(MainActivity.EXTRA_OPEN_PERSONA, it) }
         }
         runCatching { startActivity(intent) }
     }
@@ -909,16 +1033,97 @@ class PetOverlayService : Service() {
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
 
-    private fun edgeMargin(): Int = dp(56)
+    private data class SafeArea(
+        val left: Int,
+        val top: Int,
+        val right: Int,
+        val bottom: Int,
+    )
+
+    private fun safeArea(): SafeArea {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val modern = runCatching {
+                val metrics = windowManager.currentWindowMetrics
+                val bounds = metrics.bounds
+                val insets = metrics.windowInsets.getInsetsIgnoringVisibility(
+                    WindowInsets.Type.systemBars() or WindowInsets.Type.displayCutout()
+                )
+                SafeArea(
+                    left = bounds.left + insets.left,
+                    top = bounds.top + insets.top,
+                    right = bounds.right - insets.right,
+                    bottom = bounds.bottom - insets.bottom,
+                )
+            }.getOrNull()
+            if (modern != null && modern.right > modern.left && modern.bottom > modern.top) {
+                return modern
+            }
+        }
+        return legacySafeArea()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun legacySafeArea(): SafeArea {
+        val metrics = DisplayMetrics()
+        windowManager.defaultDisplay.getRealMetrics(metrics)
+        val status = systemDimen("status_bar_height", dp(24))
+        val nav = systemDimen("navigation_bar_height", dp(48))
+        return if (resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            SafeArea(0, status, metrics.widthPixels - nav, metrics.heightPixels)
+        } else {
+            SafeArea(0, status, metrics.widthPixels, metrics.heightPixels - nav)
+        }
+    }
+
+    private fun systemDimen(name: String, fallback: Int): Int {
+        val id = resources.getIdentifier(name, "dimen", "android")
+        return if (id > 0) resources.getDimensionPixelSize(id) else fallback
+    }
+
+    private fun visibleX(width: Int): Int =
+        min(dp(64), (width * 0.35f).toInt()).coerceAtLeast(dp(24))
+
+    private fun visibleY(height: Int): Int =
+        min(dp(64), (height * 0.35f).toInt()).coerceAtLeast(dp(24))
+
+    /** left, right, top, bottom for a window of this size, in screen coordinates. */
+    private fun boundsFor(width: Int, height: Int, area: SafeArea = safeArea()): IntArray {
+        val minX = area.left - width + visibleX(width)
+        val maxX = area.right - visibleX(width)
+        val minY = area.top - height + visibleY(height)
+        val maxY = area.bottom - visibleY(height)
+        return intArrayOf(minX, maxX, minY, maxY)
+    }
 
     private fun clampX(x: Int, width: Int): Int {
-        val metrics = resources.displayMetrics
-        return x.coerceIn(-width + edgeMargin(), metrics.widthPixels - edgeMargin())
+        val bounds = boundsFor(width, 1)
+        if (bounds[1] < bounds[0]) return bounds[0]
+        return x.coerceIn(bounds[0], bounds[1])
     }
 
     private fun clampY(y: Int, height: Int): Int {
-        val metrics = resources.displayMetrics
-        return y.coerceIn(-height + edgeMargin(), metrics.heightPixels - edgeMargin())
+        val bounds = boundsFor(1, height)
+        if (bounds[3] < bounds[2]) return bounds[2]
+        return y.coerceIn(bounds[2], bounds[3])
+    }
+
+    private fun persistPosition() {
+        val params = petParams ?: return
+        settings.overlayX = params.x
+        settings.overlayY = params.y
+        val bounds = boundsFor(params.width, params.height)
+        val spanX = bounds[1] - bounds[0]
+        val spanY = bounds[3] - bounds[2]
+        settings.overlayXF = if (spanX > 0) {
+            ((params.x - bounds[0]).toFloat() / spanX).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+        settings.overlayYF = if (spanY > 0) {
+            ((params.y - bounds[2]).toFloat() / spanY).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
     }
 
     private val touchSlop: Int by lazy {
@@ -952,6 +1157,12 @@ class PetOverlayService : Service() {
             Intent(this, PetOverlayService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val reset = PendingIntent.getService(
+            this,
+            2,
+            Intent(this, PetOverlayService::class.java).setAction(ACTION_RESET_POSITION),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
@@ -962,6 +1173,7 @@ class PetOverlayService : Service() {
             .setSilent(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .addAction(0, "找回桌宠", reset)
             .addAction(0, getString(R.string.notification_stop), stop)
             .build()
     }
@@ -970,6 +1182,7 @@ class PetOverlayService : Service() {
         private const val CHANNEL_ID = "pet_overlay"
         private const val NOTIFICATION_ID = 1001
         const val ACTION_STOP = "com.dsh.companion.action.STOP_OVERLAY"
+        const val ACTION_RESET_POSITION = "com.dsh.companion.action.RESET_POSITION"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
