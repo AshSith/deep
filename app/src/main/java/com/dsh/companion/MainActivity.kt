@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
     private var pendingConversation by mutableStateOf<String?>(null)
     private var pendingGroup by mutableStateOf<String?>(null)
+    private var pendingPersona by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,9 +40,11 @@ class MainActivity : ComponentActivity() {
                     vm = viewModel,
                     pendingConversation = pendingConversation,
                     pendingGroup = pendingGroup,
+                    pendingPersona = pendingPersona,
                     onPendingConsumed = {
                         pendingConversation = null
                         pendingGroup = null
+                        pendingPersona = null
                     },
                 )
             }
@@ -58,6 +61,7 @@ class MainActivity : ComponentActivity() {
         intent ?: return
         intent.getStringExtra(EXTRA_OPEN_CONVERSATION)?.let { pendingConversation = it }
         intent.getStringExtra(EXTRA_OPEN_GROUP)?.let { pendingGroup = it }
+        intent.getStringExtra(EXTRA_OPEN_PERSONA)?.let { pendingPersona = it }
     }
 
     override fun onResume() {
