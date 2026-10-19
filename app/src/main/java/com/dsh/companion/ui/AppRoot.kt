@@ -45,6 +45,7 @@ fun AppRoot(
     vm: MainViewModel,
     pendingConversation: String? = null,
     pendingGroup: String? = null,
+    pendingPersona: String? = null,
     onPendingConsumed: () -> Unit = {},
 ) {
     val groupVm: GroupViewModel = viewModel()
@@ -53,15 +54,20 @@ fun AppRoot(
     val currentRoute = backStackEntry?.destination?.route
     val showBar = tabs.any { it.route == currentRoute }
 
-    LaunchedEffect(pendingConversation, pendingGroup) {
+    LaunchedEffect(pendingConversation, pendingGroup, pendingPersona) {
         val group = pendingGroup
         val conversation = pendingConversation
+        val persona = pendingPersona
         if (group != null) {
             groupVm.openGroup(group)
             navController.navigate("group/$group") { launchSingleTop = true }
             onPendingConsumed()
         } else if (conversation != null) {
             vm.openConversation(conversation)
+            navController.navigate("chat") { launchSingleTop = true }
+            onPendingConsumed()
+        } else if (persona != null) {
+            vm.openLatestConversation(persona)
             navController.navigate("chat") { launchSingleTop = true }
             onPendingConsumed()
         }
@@ -125,6 +131,13 @@ fun AppRoot(
                 SettingsScreen(
                     vm = vm,
                     onAppearance = { navController.navigate("appearance") },
+                    onCharacters = { navController.navigate("characters") },
+                )
+            }
+            composable("characters") {
+                CharacterLibraryScreen(
+                    vm = vm,
+                    onBack = { navController.popBackStack() },
                 )
             }
             composable("appearance") {
