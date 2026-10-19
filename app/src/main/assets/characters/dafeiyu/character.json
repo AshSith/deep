@@ -1,7 +1,7 @@
 {
   "id": "dafeiyu",
   "name": "大肥鱼",
-  "subtitle": "鲸尾女仆",
+  "subtitle": "鲸尾女仆 · 完整动作",
   "author": "PC2005-cloud / dsh-pet",
   "license": "MIT",
   "fps": 24,
@@ -13,7 +13,10 @@
     "thinking": "thinking",
     "working": "working",
     "success": "success",
-    "error": "error"
+    "error": "error",
+    "wave": "wave",
+    "nap": "nap",
+    "tea": "tea"
   },
   "clips": {
     "idle": {
@@ -75,6 +78,90 @@
       "loop": false,
       "frames": 49,
       "durationMs": 2058
+    },
+    "wave": {
+      "file": "wave.webp",
+      "loop": false,
+      "frames": 4,
+      "durationMs": 1000
+    },
+    "sign": {
+      "file": "sign.webp",
+      "loop": false,
+      "frames": 4,
+      "durationMs": 1600
+    },
+    "work": {
+      "file": "work.webp",
+      "loop": true,
+      "frames": 4,
+      "durationMs": 800
+    },
+    "panic": {
+      "file": "panic.webp",
+      "loop": false,
+      "frames": 4,
+      "durationMs": 1000
+    },
+    "tea": {
+      "file": "tea.webp",
+      "loop": false,
+      "frames": 6,
+      "durationMs": 3000
+    },
+    "wipe": {
+      "file": "wipe.webp",
+      "loop": false,
+      "frames": 4,
+      "durationMs": 2000
+    },
+    "stretch": {
+      "file": "stretch.webp",
+      "loop": false,
+      "frames": 4,
+      "durationMs": 2000
+    },
+    "hug": {
+      "file": "hug.webp",
+      "loop": true,
+      "frames": 72,
+      "durationMs": 3024
+    },
+    "nap": {
+      "file": "nap.webp",
+      "loop": true,
+      "frames": 96,
+      "durationMs": 4032
+    },
+    "pout": {
+      "file": "pout.webp",
+      "loop": false,
+      "frames": 48,
+      "durationMs": 2016
+    },
+    "dizzy": {
+      "file": "dizzy.webp",
+      "loop": false,
+      "frames": 48,
+      "durationMs": 2016
+    },
+    "peek": {
+      "file": "peek.webp",
+      "loop": false,
+      "frames": 48,
+      "durationMs": 2016
+    },
+    "sigh": {
+      "file": "sigh.webp",
+      "loop": false,
+      "frames": 48,
+      "durationMs": 2016
+    },
+    "tail_wag": {
+      "file": "tail_wag.webp",
+      "loop": true,
+      "frames": 48,
+      "durationMs": 2016
     }
   }
 }
