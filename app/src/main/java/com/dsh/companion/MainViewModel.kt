@@ -231,15 +231,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshChatPreviews()
     }
 
-    fun deleteConversation(conversationId: String) {
-        chatStore.delete(conversationId)
-        if (_activeConversationId.value == conversationId) {
-            _activeConversationId.value = null
-            _messages.value = emptyList()
-        }
-        refreshChatPreviews()
-    }
-
     fun openLatestConversation(personaId: String) {
         val persona = personaStore.get(personaId) ?: return
         val latest = chatStore.conversations(persona.id).firstOrNull()
