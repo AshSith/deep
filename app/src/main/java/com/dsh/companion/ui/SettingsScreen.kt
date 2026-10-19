@@ -30,6 +30,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -75,6 +76,7 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
+    val motionFrequency by vm.desktopMotionFrequency.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -215,6 +217,30 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
                         )
                         Text(
                             text = "有些手机会在后台杀掉悬浮窗，需要在系统设置里允许自启动、关闭电池优化。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Text(
+                            text = "桌面自主动作频率",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.padding(top = 8.dp),
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf(
+                                0 to "关",
+                                1 to "低",
+                                2 to "中",
+                                3 to "高",
+                            ).forEach { (value, label) ->
+                                FilterChip(
+                                    selected = motionFrequency == value,
+                                    onClick = { vm.setDesktopMotionFrequency(value) },
+                                    label = { Text(label) },
+                                )
+                            }
+                        }
+                        Text(
+                            text = "低约 5 分钟一次，中约 2 分钟，高约 45 秒；只在桌宠悬浮窗开启、App 在后台时触发。",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
