@@ -49,6 +49,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_TAP_RESPONDS, true)
         set(value) = prefs.edit().putBoolean(KEY_TAP_RESPONDS, value).apply()
 
+    var menuScale: Float
+        get() = prefs.getFloat(KEY_MENU_SCALE, 1f).coerceIn(0.75f, 1.3f)
+        set(value) = prefs.edit().putFloat(KEY_MENU_SCALE, value.coerceIn(0.75f, 1.3f)).apply()
+
     var chatBackgroundColor: Int
         get() = prefs.getInt(KEY_CHAT_BG_COLOR, 0).let {
             if (it == 0xFF0B1020.toInt()) 0 else it
@@ -64,16 +68,28 @@ class SettingsStore(context: Context) {
         set(value) = prefs.edit().putString(KEY_CHAT_BG_IMAGE, value).apply()
 
     var bubbleColor: Int
-        get() = prefs.getInt(KEY_BUBBLE_COLOR, 0xF21B2438.toInt())
+        get() = prefs.getInt(KEY_BUBBLE_COLOR, 0xFFFFFDF5.toInt()).let {
+            if (it == 0xF21B2438.toInt()) 0xFFFFFDF5.toInt() else it
+        }
         set(value) = prefs.edit().putInt(KEY_BUBBLE_COLOR, value).apply()
 
     var bubbleTextColor: Int
-        get() = prefs.getInt(KEY_BUBBLE_TEXT_COLOR, 0xFFEAF2FF.toInt())
+        get() = prefs.getInt(KEY_BUBBLE_TEXT_COLOR, 0xFF1F1F1F.toInt()).let {
+            if (it == 0xFFEAF2FF.toInt()) 0xFF1F1F1F.toInt() else it
+        }
         set(value) = prefs.edit().putInt(KEY_BUBBLE_TEXT_COLOR, value).apply()
 
     var hasSeenIntro: Boolean
         get() = prefs.getBoolean(KEY_INTRO, false)
         set(value) = prefs.edit().putBoolean(KEY_INTRO, value).apply()
+
+    var userAvatarUri: String?
+        get() = prefs.getString(KEY_USER_AVATAR, null)
+        set(value) = prefs.edit().putString(KEY_USER_AVATAR, value).apply()
+
+    var userName: String
+        get() = prefs.getString(KEY_USER_NAME, "我") ?: "我"
+        set(value) = prefs.edit().putString(KEY_USER_NAME, value).apply()
 
     private companion object {
         const val KEY_ACTIVE = "active_persona"
@@ -87,11 +103,14 @@ class SettingsStore(context: Context) {
         const val KEY_BRIGHTNESS = "overlay_brightness"
         const val KEY_FLIPPED = "overlay_flipped"
         const val KEY_TAP_RESPONDS = "tap_responds"
+        const val KEY_MENU_SCALE = "menu_scale"
         const val KEY_CHAT_BG_COLOR = "chat_bg_color"
         const val KEY_THEME_COLOR = "theme_color"
         const val KEY_CHAT_BG_IMAGE = "chat_bg_image"
         const val KEY_BUBBLE_COLOR = "bubble_color"
         const val KEY_BUBBLE_TEXT_COLOR = "bubble_text_color"
         const val KEY_INTRO = "seen_intro"
+        const val KEY_USER_AVATAR = "user_avatar"
+        const val KEY_USER_NAME = "user_name"
     }
 }
