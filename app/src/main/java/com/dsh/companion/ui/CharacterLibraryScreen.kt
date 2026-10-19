@@ -113,7 +113,7 @@ fun CharacterLibraryScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 fontWeight = FontWeight.SemiBold,
                             )
                             Text(
-                                text = character.subtitle + if (character.isBuiltIn) " · 内置" else "",
+                                text = character.meta.subtitle + if (character.isBuiltIn) " · 内置" else "",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
