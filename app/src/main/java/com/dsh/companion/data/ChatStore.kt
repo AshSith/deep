@@ -33,12 +33,12 @@ class ChatStore(context: Context) {
             Conversation(
                 id = safe(personaId),
                 personaId = personaId,
-                title = titleFrom(messages) ?: "和${personaName}的旧对话",
+                title = titleFrom(messages) ?: personaName,
                 createdAt = legacy.lastModified().takeIf { it > 0 } ?: now,
                 updatedAt = legacy.lastModified().takeIf { it > 0 } ?: now,
             )
         } else {
-            Conversation(personaId = personaId, title = "和${personaName}的对话")
+            Conversation(personaId = personaId, title = personaName)
         }
         all.add(conversation)
         writeIndex(all)
@@ -48,7 +48,7 @@ class ChatStore(context: Context) {
     fun create(personaId: String, personaName: String): Conversation = synchronized(lock) {
         val conversation = Conversation(
             personaId = personaId,
-            title = "和${personaName}的对话",
+            title = personaName,
         )
         val all = conversations().toMutableList()
         all.add(conversation)
@@ -79,6 +79,16 @@ class ChatStore(context: Context) {
         val file = File(dir, "${safe(conversationId)}.json")
         runCatching { JsonStore.write(file, messages.takeLast(MAX_MESSAGES)) }
         touch(conversationId)
+    }
+
+    fun update(conversation: Conversation) {
+        synchronized(lock) {
+            val all = conversations().toMutableList()
+            val index = all.indexOfFirst { it.id == conversation.id }
+            if (index < 0) return
+            all[index] = conversation
+            writeIndex(all)
+        }
     }
 
     fun delete(conversationId: String) {
