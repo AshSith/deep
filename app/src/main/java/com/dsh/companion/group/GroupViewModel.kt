@@ -1,6 +1,7 @@
 package com.dsh.companion.group
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dsh.companion.data.Character
@@ -10,17 +11,23 @@ import com.dsh.companion.data.GroupChat
 import com.dsh.companion.data.GroupStore
 import com.dsh.companion.data.Persona
 import com.dsh.companion.data.PersonaStore
+import com.dsh.companion.data.SettingsStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
 class GroupViewModel(app: Application) : AndroidViewModel(app) {
     private val store = GroupStore(app)
     private val personaStore = PersonaStore(app)
     private val characterRepository = CharacterRepository(app)
     private val engine = GroupChatEngine(app)
+    private val settings = SettingsStore(app)
+
+    val groupUserBubbleColor: StateFlow<Int> = MutableStateFlow(settings.groupUserBubbleColor)
+    val groupAssistantBubbleColor: StateFlow<Int> = MutableStateFlow(settings.groupAssistantBubbleColor)
 
     val personas: StateFlow<List<Persona>> = personaStore.personas
 
@@ -39,7 +46,18 @@ class GroupViewModel(app: Application) : AndroidViewModel(app) {
     private val _sending = MutableStateFlow(false)
     val sending: StateFlow<Boolean> = _sending.asStateFlow()
 
+    init {
+        refreshGroups()
+    }
+
     fun refreshGroups() {
+        val valid = personaStore.personas.value.map { it.id }.toSet()
+        store.groups().forEach { group ->
+            val filtered = group.memberIds.filter { it in valid }
+            if (filtered.size != group.memberIds.size) {
+                store.update(group.copy(memberIds = filtered))
+            }
+        }
         _groups.value = store.groups()
         _characters.value = characterRepository.list()
     }
@@ -80,18 +98,57 @@ class GroupViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun send(text: String) {
-        val group = _activeGroup.value ?: return
         val content = text.trim()
-        if (content.isEmpty() || _sending.value) return
+        if (content.isEmpty()) return
+        sendMessage(ChatMessage(role = ChatMessage.ROLE_USER, content = content))
+    }
 
-        val user = ChatMessage(role = ChatMessage.ROLE_USER, content = content)
+    fun sendAttachment(uri: Uri, type: String) {
+        val file = copyAttachment(uri, type) ?: return
+        val label = when (type) {
+            "image" -> "[图片]"
+            "video" -> "[视频]"
+            "audio" -> "[语音]"
+            else -> "[文件]"
+        }
+        sendMessage(
+            ChatMessage(
+                role = ChatMessage.ROLE_USER,
+                content = label,
+                attachmentUri = file.absolutePath,
+                attachmentType = type,
+                attachmentName = file.name,
+            )
+        )
+    }
+
+    private fun copyAttachment(uri: Uri, type: String): File? {
+        val ext = when (type) {
+            "image" -> "jpg"
+            "video" -> "mp4"
+            "audio" -> "m4a"
+            else -> "bin"
+        }
+        val dir = File(getApplication<Application>().filesDir, "group_media").apply { mkdirs() }
+        val file = File(dir, "media-${System.currentTimeMillis()}.$ext")
+        return runCatching {
+            getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            } ?: return null
+            if (file.length() > 0) file else null
+        }.getOrNull()
+    }
+
+    private fun sendMessage(user: ChatMessage) {
+        val group = _activeGroup.value ?: return
+        if (_sending.value) return
         _messages.value = _messages.value + user
         store.saveMessages(group.id, _messages.value)
         _sending.value = true
 
         viewModelScope.launch {
             try {
-                val responder = engine.responder(group, content)
+                val responder = engine.responder(group, user.content)
                 if (responder == null) {
                     appendError(group, "群里还没有配置 API Key 的成员。")
                     return@launch
