@@ -93,6 +93,7 @@ fun PersonaEditScreen(
     var model by remember(base.id) { mutableStateOf(base.model) }
     var temperature by remember(base.id) { mutableStateOf(base.temperature) }
     var maxTokens by remember(base.id) { mutableStateOf(base.maxTokens) }
+    var vision by remember(base.id) { mutableStateOf(base.visionEnabled) }
     var characterId by remember(base.id) { mutableStateOf(base.characterId) }
     var avatarUri by remember(base.id) { mutableStateOf(base.avatarUri) }
     var voiceName by remember(base.id) { mutableStateOf(base.voiceName) }
@@ -144,6 +145,7 @@ fun PersonaEditScreen(
         model = model.trim().ifBlank { "deepseek-chat" },
         temperature = temperature,
         maxTokens = maxTokens,
+        visionEnabled = vision,
         voiceName = voiceName,
         speechPitch = pitch,
         speechRate = rate,
@@ -484,6 +486,17 @@ fun PersonaEditScreen(
             }
 
             Section(title = "模型参数") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("图片识别", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "仅支持视觉模型（gpt-4o / qwen-vl / 带 vision 的模型）；文本模型请关闭。",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    Switch(checked = vision, onCheckedChange = { vision = it })
+                }
                 Text("温度 ${format(temperature)}", style = MaterialTheme.typography.bodySmall)
                 Slider(
                     value = temperature,
