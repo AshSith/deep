@@ -81,6 +81,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
@@ -117,6 +118,8 @@ fun ChatScreen(
     val character by vm.activeCharacter.collectAsStateWithLifecycle()
     val userAvatar by vm.userAvatarUri.collectAsStateWithLifecycle()
     val userName by vm.userName.collectAsStateWithLifecycle()
+    val userBubbleColor by vm.chatUserBubbleColor.collectAsStateWithLifecycle()
+    val assistantBubbleColor by vm.chatAssistantBubbleColor.collectAsStateWithLifecycle()
     val messages by vm.messages.collectAsStateWithLifecycle()
     val streaming by vm.streaming.collectAsStateWithLifecycle()
     val bgColor by vm.chatBackgroundColor.collectAsStateWithLifecycle()
@@ -316,6 +319,8 @@ fun ChatScreen(
                         assistantName = persona?.name ?: "DSH 伴侣",
                         userAvatarUri = userAvatar,
                         userName = userName,
+                        userBubbleColor = userBubbleColor,
+                        assistantBubbleColor = assistantBubbleColor,
                     )
                 }
             }
@@ -580,7 +585,7 @@ private val chatTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 private fun formatTime(at: Long): String = chatTimeFormat.format(Date(at))
 
 @Composable
-private fun ChatAttachment(uri: String, type: String?, name: String?) {
+fun ChatAttachment(uri: String, type: String?, name: String?) {
     val context = LocalContext.current
     when (type) {
         "image" -> {
@@ -702,15 +707,20 @@ private fun MessageBubble(
     assistantName: String,
     userAvatarUri: String?,
     userName: String,
+    userBubbleColor: Int,
+    assistantBubbleColor: Int,
 ) {
     val isUser = message.role == ChatMessage.ROLE_USER
+    val custom = if (isUser) userBubbleColor else assistantBubbleColor
     val container = when {
         message.error -> MaterialTheme.colorScheme.errorContainer
+        custom != 0 -> Color(custom)
         isUser -> MaterialTheme.colorScheme.primaryContainer
         else -> MaterialTheme.colorScheme.surfaceVariant
     }
     val contentColor = when {
         message.error -> MaterialTheme.colorScheme.onErrorContainer
+        custom != 0 -> if (Color(custom).luminance() > 0.55f) Color(0xFF1B1B1B) else Color.White
         isUser -> MaterialTheme.colorScheme.onPrimaryContainer
         else -> MaterialTheme.colorScheme.onSurface
     }
