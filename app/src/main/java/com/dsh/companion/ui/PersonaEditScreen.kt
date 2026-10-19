@@ -3,6 +3,9 @@ package com.dsh.companion.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import android.content.Intent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -48,6 +51,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -60,6 +64,7 @@ import com.dsh.companion.MainViewModel
 import com.dsh.companion.data.Character
 import com.dsh.companion.data.Persona
 import com.dsh.companion.ui.components.CharacterThumb
+import com.dsh.companion.ui.components.ChatAvatar
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -74,6 +79,7 @@ fun PersonaEditScreen(
     val voices by vm.voices.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     val isNew = personaId == "new"
     val base = remember(isNew, personaId) {
@@ -88,6 +94,7 @@ fun PersonaEditScreen(
     var temperature by remember(base.id) { mutableStateOf(base.temperature) }
     var maxTokens by remember(base.id) { mutableStateOf(base.maxTokens) }
     var characterId by remember(base.id) { mutableStateOf(base.characterId) }
+    var avatarUri by remember(base.id) { mutableStateOf(base.avatarUri) }
     var voiceName by remember(base.id) { mutableStateOf(base.voiceName) }
     var pitch by remember(base.id) { mutableStateOf(base.speechPitch) }
     var rate by remember(base.id) { mutableStateOf(base.speechRate) }
@@ -109,6 +116,18 @@ fun PersonaEditScreen(
 
     val selectedCharacter = characters.firstOrNull { it.id == characterId } ?: characters.firstOrNull()
 
+    val avatarPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            avatarUri = uri.toString()
+        }
+    }
+
     LaunchedEffect(characters) {
         if (characters.isNotEmpty() && characters.none { it.id == characterId }) {
             characterId = characters.first().id
@@ -118,6 +137,7 @@ fun PersonaEditScreen(
     fun draft(): Persona = base.copy(
         name = name.trim().ifBlank { "未命名角色" },
         characterId = selectedCharacter?.id ?: characterId,
+        avatarUri = avatarUri,
         systemPrompt = prompt,
         baseUrl = baseUrl.trim().ifBlank { "https://api.deepseek.com/v1" },
         apiKey = apiKey.trim(),
@@ -225,6 +245,29 @@ fun PersonaEditScreen(
                             )
                         }
                     }
+                }
+            }
+
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ChatAvatar(
+                    uri = avatarUri,
+                    character = selectedCharacter,
+                    name = name,
+                    size = 52.dp,
+                )
+                Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                    Text("聊天头像", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        text = if (avatarUri == null) "默认使用角色形象" else "已使用自定义头像",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                TextButton(onClick = { avatarPicker.launch(arrayOf("image/*")) }) {
+                    Text("自定义")
+                }
+                if (avatarUri != null) {
+                    TextButton(onClick = { avatarUri = null }) { Text("默认") }
                 }
             }
 
