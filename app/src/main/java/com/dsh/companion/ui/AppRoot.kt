@@ -13,6 +13,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -40,12 +41,31 @@ private val tabs = listOf(
 )
 
 @Composable
-fun AppRoot(vm: MainViewModel) {
+fun AppRoot(
+    vm: MainViewModel,
+    pendingConversation: String? = null,
+    pendingGroup: String? = null,
+    onPendingConsumed: () -> Unit = {},
+) {
     val groupVm: GroupViewModel = viewModel()
     val navController = rememberNavController()
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.route
     val showBar = tabs.any { it.route == currentRoute }
+
+    LaunchedEffect(pendingConversation, pendingGroup) {
+        val group = pendingGroup
+        val conversation = pendingConversation
+        if (group != null) {
+            groupVm.openGroup(group)
+            navController.navigate("group/$group") { launchSingleTop = true }
+            onPendingConsumed()
+        } else if (conversation != null) {
+            vm.openConversation(conversation)
+            navController.navigate("chat") { launchSingleTop = true }
+            onPendingConsumed()
+        }
+    }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
