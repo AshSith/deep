@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -50,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.data.GroupChat
 import com.dsh.companion.ui.components.CharacterThumb
+import com.dsh.companion.ui.components.ChatAvatar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -229,6 +231,7 @@ private fun GroupMessageRow(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.Bottom,
         ) {
             Surface(
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -242,10 +245,17 @@ private fun GroupMessageRow(
                     style = MaterialTheme.typography.bodyMedium,
                 )
             }
+            Box(Modifier.width(6.dp))
+            ChatAvatar(uri = null, character = null, name = "我", size = 36.dp)
         }
     } else {
-        Row(modifier = Modifier.fillMaxWidth()) {
-            CharacterThumb(character = character, size = 36.dp)
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+            ChatAvatar(
+                uri = persona?.avatarUri,
+                character = character,
+                name = persona?.name ?: message.senderName ?: "成员",
+                size = 36.dp,
+            )
             Column(
                 modifier = Modifier
                     .weight(1f)
