@@ -59,12 +59,13 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.MainViewModel
+import com.dsh.companion.ui.components.ChatAvatar
 import kotlinx.coroutines.launch
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
+fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: () -> Unit) {
     val context = LocalContext.current
     val overlayEnabled by vm.overlayEnabled.collectAsStateWithLifecycle()
     val scale by vm.overlayScale.collectAsStateWithLifecycle()
@@ -77,6 +78,8 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
     val motionFrequency by vm.desktopMotionFrequency.collectAsStateWithLifecycle()
+    val userAvatar by vm.userAvatarUri.collectAsStateWithLifecycle()
+    val userName by vm.userName.collectAsStateWithLifecycle()
 
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -138,6 +141,20 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
                 )
             }
             vm.setChatBackgroundImage(uri.toString())
+        }
+    }
+
+    val userAvatarPicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION,
+                )
+            }
+            vm.setUserAvatarUri(uri.toString())
         }
     }
 
@@ -244,6 +261,41 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit) {
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                }
+            }
+
+            item {
+                SettingsCard(title = "角色") {
+                    Text(
+                        text = "查看已有形象、导入新的角色包、删除导入的形象。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    TextButton(onClick = onCharacters) { Text("管理形象") }
+                }
+            }
+
+            item {
+                SettingsCard(title = "我的资料") {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ChatAvatar(uri = userAvatar, character = null, name = userName, size = 54.dp)
+                        Column(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Text("我的头像", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                text = "聊天界面里显示在你说的话旁边",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                    Row {
+                        TextButton(onClick = { userAvatarPicker.launch(arrayOf("image/*")) }) {
+                            Text("选择头像")
+                        }
+                        if (userAvatar != null) {
+                            TextButton(onClick = { vm.setUserAvatarUri(null) }) { Text("恢复默认") }
+                        }
                     }
                 }
             }
