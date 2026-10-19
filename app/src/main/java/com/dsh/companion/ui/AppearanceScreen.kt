@@ -68,6 +68,10 @@ private enum class ColorTarget(val label: String) {
     CHAT_BG("聊天背景"),
     BUBBLE("气泡颜色"),
     BUBBLE_TEXT("气泡文字"),
+    CHAT_USER("单聊·我"),
+    CHAT_AI("单聊·对方"),
+    GROUP_USER("群聊·我"),
+    GROUP_AI("群聊·成员"),
 }
 
 private val basicColors = listOf(
@@ -94,6 +98,10 @@ fun AppearanceScreen(vm: MainViewModel, onBack: () -> Unit) {
     val chatBgImage by vm.chatBackgroundImage.collectAsStateWithLifecycle()
     val bubbleColor by vm.bubbleColor.collectAsStateWithLifecycle()
     val bubbleTextColor by vm.bubbleTextColor.collectAsStateWithLifecycle()
+    val chatUserBubble by vm.chatUserBubbleColor.collectAsStateWithLifecycle()
+    val chatAssistantBubble by vm.chatAssistantBubbleColor.collectAsStateWithLifecycle()
+    val groupUserBubble by vm.groupUserBubbleColor.collectAsStateWithLifecycle()
+    val groupAssistantBubble by vm.groupAssistantBubbleColor.collectAsStateWithLifecycle()
 
     var target by remember { mutableStateOf<ColorTarget?>(null) }
 
@@ -169,6 +177,22 @@ fun AppearanceScreen(vm: MainViewModel, onBack: () -> Unit) {
                 )
             }
 
+            AppearanceCard(title = "聊天气泡") {
+                Text("单聊 · 我说的", style = MaterialTheme.typography.bodySmall)
+                ColorRow(color = chatUserBubble, onPick = { target = ColorTarget.CHAT_USER })
+                Text("单聊 · 对方说的", style = MaterialTheme.typography.bodySmall)
+                ColorRow(color = chatAssistantBubble, onPick = { target = ColorTarget.CHAT_AI })
+                Text("群聊 · 我说的", style = MaterialTheme.typography.bodySmall)
+                ColorRow(color = groupUserBubble, onPick = { target = ColorTarget.GROUP_USER })
+                Text("群聊 · 成员说的", style = MaterialTheme.typography.bodySmall)
+                ColorRow(color = groupAssistantBubble, onPick = { target = ColorTarget.GROUP_AI })
+                Text(
+                    text = "0/跟随主题会使用当前主题配色；单独调色后会覆盖。",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
             AppearanceCard(title = "桌宠气泡") {
                 Text("气泡颜色", style = MaterialTheme.typography.bodySmall)
                 ColorRow(color = bubbleColor, onPick = { target = ColorTarget.BUBBLE })
@@ -221,6 +245,10 @@ fun AppearanceScreen(vm: MainViewModel, onBack: () -> Unit) {
             ColorTarget.CHAT_BG -> chatBgColor
             ColorTarget.BUBBLE -> bubbleColor
             ColorTarget.BUBBLE_TEXT -> bubbleTextColor
+            ColorTarget.CHAT_USER -> chatUserBubble
+            ColorTarget.CHAT_AI -> chatAssistantBubble
+            ColorTarget.GROUP_USER -> groupUserBubble
+            ColorTarget.GROUP_AI -> groupAssistantBubble
         }
         ColorPickerDialog(
             title = currentTarget.label,
@@ -232,6 +260,10 @@ fun AppearanceScreen(vm: MainViewModel, onBack: () -> Unit) {
                     ColorTarget.CHAT_BG -> vm.setChatBackgroundColor(color)
                     ColorTarget.BUBBLE -> vm.setBubbleColor(color)
                     ColorTarget.BUBBLE_TEXT -> vm.setBubbleTextColor(color)
+                    ColorTarget.CHAT_USER -> vm.setChatUserBubbleColor(color)
+                    ColorTarget.CHAT_AI -> vm.setChatAssistantBubbleColor(color)
+                    ColorTarget.GROUP_USER -> vm.setGroupUserBubbleColor(color)
+                    ColorTarget.GROUP_AI -> vm.setGroupAssistantBubbleColor(color)
                 }
                 target = null
             },
