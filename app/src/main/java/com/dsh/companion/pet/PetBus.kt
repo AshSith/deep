@@ -4,11 +4,17 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
 sealed interface PetEvent {
-    data class Say(val text: String) : PetEvent
+    data class Say(
+        val text: String,
+        val conversationId: String? = null,
+        val personaId: String? = null,
+        val groupId: String? = null,
+    ) : PetEvent
     data class Clip(val name: String, val once: Boolean = true) : PetEvent
     data object Thinking : PetEvent
     data object Success : PetEvent
     data object Error : PetEvent
+    data object MotionFrequencyChanged : PetEvent
 }
 
 object PetBus {
