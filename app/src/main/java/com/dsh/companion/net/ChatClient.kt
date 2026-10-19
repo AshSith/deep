@@ -1,5 +1,6 @@
 package com.dsh.companion.net
 
+import android.util.Base64
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.data.Persona
 import kotlinx.coroutines.Dispatchers
@@ -22,6 +23,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
@@ -50,7 +52,38 @@ class ChatClient {
                 .forEach { message ->
                     addJsonObject {
                         put("role", message.role)
-                        put("content", message.content)
+                        val imageFile = message.attachmentUri
+                            ?.takeIf { persona.visionEnabled && message.attachmentType == "image" }
+                            ?.let(::File)
+                        val imageBytes = imageFile
+                            ?.takeIf { it.isFile && it.length() in 1L..6_000_000L }
+                            ?.let { runCatching { it.readBytes() }.getOrNull() }
+                        if (imageBytes != null) {
+                            put(
+                                "content",
+                                buildJsonArray {
+                                    addJsonObject {
+                                        put("type", "text")
+                                        put("text", message.content.ifBlank { "请看这张图片" })
+                                    }
+                                    addJsonObject {
+                                        put("type", "image_url")
+                                        put(
+                                            "image_url",
+                                            buildJsonObject {
+                                                put(
+                                                    "url",
+                                                    "data:image/jpeg;base64," +
+                                                        Base64.encodeToString(imageBytes, Base64.NO_WRAP),
+                                                )
+                                            },
+                                        )
+                                    }
+                                },
+                            )
+                        } else {
+                            put("content", message.content)
+                        }
                     }
                 }
         }
