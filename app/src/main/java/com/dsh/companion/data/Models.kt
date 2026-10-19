@@ -8,6 +8,7 @@ data class Persona(
     val id: String = UUID.randomUUID().toString(),
     val name: String = "大肥鱼",
     val characterId: String = "dafeiyu",
+    val avatarUri: String? = null,
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
     val baseUrl: String = "https://api.deepseek.com/v1",
     val apiKey: String = "",
@@ -60,6 +61,8 @@ data class Conversation(
     val title: String = "新对话",
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
+    val pinned: Boolean = false,
+    val unread: Boolean = false,
 )
 
 data class ChatPreview(
@@ -77,6 +80,9 @@ data class ChatMessage(
     val error: Boolean = false,
     val personaId: String? = null,
     val senderName: String? = null,
+    val attachmentUri: String? = null,
+    val attachmentType: String? = null,
+    val attachmentName: String? = null,
 ) {
     companion object {
         const val ROLE_USER = "user"
