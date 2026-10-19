@@ -82,6 +82,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _userName = MutableStateFlow(settings.userName)
     val userName: StateFlow<String> = _userName.asStateFlow()
 
+    private val _chatUserBubbleColor = MutableStateFlow(settings.chatUserBubbleColor)
+    val chatUserBubbleColor: StateFlow<Int> = _chatUserBubbleColor.asStateFlow()
+
+    private val _chatAssistantBubbleColor = MutableStateFlow(settings.chatAssistantBubbleColor)
+    val chatAssistantBubbleColor: StateFlow<Int> = _chatAssistantBubbleColor.asStateFlow()
+
+    private val _groupUserBubbleColor = MutableStateFlow(settings.groupUserBubbleColor)
+    val groupUserBubbleColor: StateFlow<Int> = _groupUserBubbleColor.asStateFlow()
+
+    private val _groupAssistantBubbleColor = MutableStateFlow(settings.groupAssistantBubbleColor)
+    val groupAssistantBubbleColor: StateFlow<Int> = _groupAssistantBubbleColor.asStateFlow()
+
     private val _activeConversationId = MutableStateFlow<String?>(null)
     val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
 
@@ -191,6 +203,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val next = name.trim().ifBlank { "我" }.take(20)
         settings.userName = next
         _userName.value = next
+    }
+
+    fun setChatUserBubbleColor(color: Int) {
+        settings.chatUserBubbleColor = color
+        _chatUserBubbleColor.value = color
+    }
+
+    fun setChatAssistantBubbleColor(color: Int) {
+        settings.chatAssistantBubbleColor = color
+        _chatAssistantBubbleColor.value = color
+    }
+
+    fun setGroupUserBubbleColor(color: Int) {
+        settings.groupUserBubbleColor = color
+        _groupUserBubbleColor.value = color
+    }
+
+    fun setGroupAssistantBubbleColor(color: Int) {
+        settings.groupAssistantBubbleColor = color
+        _groupAssistantBubbleColor.value = color
     }
 
     fun setDesktopMotionFrequency(value: Int) {
