@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.media.MediaPlayer
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -32,16 +34,23 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EmojiEmotions
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.VolumeOff
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -58,14 +67,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -73,25 +83,28 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.MainViewModel
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.ui.components.CharacterStage
 import com.dsh.companion.ui.components.CharacterThumb
+import com.dsh.companion.ui.components.ChatAvatar
+import com.dsh.companion.voice.AudioRecorder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatScreen(
@@ -102,6 +115,8 @@ fun ChatScreen(
     val context = LocalContext.current
     val persona by vm.activePersona.collectAsStateWithLifecycle()
     val character by vm.activeCharacter.collectAsStateWithLifecycle()
+    val userAvatar by vm.userAvatarUri.collectAsStateWithLifecycle()
+    val userName by vm.userName.collectAsStateWithLifecycle()
     val messages by vm.messages.collectAsStateWithLifecycle()
     val streaming by vm.streaming.collectAsStateWithLifecycle()
     val bgColor by vm.chatBackgroundColor.collectAsStateWithLifecycle()
@@ -141,6 +156,18 @@ fun ChatScreen(
         } else {
             scope.launch { snackbar.showSnackbar("需要麦克风权限才能语音输入") }
         }
+    }
+
+    var showAttach by remember { mutableStateOf(false) }
+    var showStickers by remember { mutableStateOf(false) }
+    var recordingVoice by remember { mutableStateOf(false) }
+    val audioRecorder = remember { AudioRecorder(context) }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.sendAttachment(uri, "image")
+    }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.sendAttachment(uri, "video")
     }
 
     val send: () -> Unit = {
@@ -284,16 +311,99 @@ fun ChatScreen(
                         typing = streaming &&
                             message.role == ChatMessage.ROLE_ASSISTANT &&
                             message.content.isEmpty(),
+                        assistantCharacter = character,
+                        assistantAvatarUri = persona?.avatarUri,
+                        assistantName = persona?.name ?: "DSH 伴侣",
+                        userAvatarUri = userAvatar,
+                        userName = userName,
                     )
                 }
             }
 
+            if (recordingVoice) {
+                Text(
+                    text = "录音中… 点 + →「停止并发送语音」",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box {
+                    IconButton(
+                        enabled = persona != null,
+                        onClick = { showAttach = true },
+                    ) {
+                        Icon(
+                            Icons.Default.AttachFile,
+                            contentDescription = "添加附件",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = showAttach,
+                        onDismissRequest = { showAttach = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("图片") },
+                            leadingIcon = { Icon(Icons.Default.Add, contentDescription = null) },
+                            onClick = {
+                                showAttach = false
+                                imagePicker.launch(arrayOf("image/*"))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("视频") },
+                            leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = null) },
+                            onClick = {
+                                showAttach = false
+                                videoPicker.launch(arrayOf("video/*"))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("表情包") },
+                            leadingIcon = { Icon(Icons.Default.EmojiEmotions, contentDescription = null) },
+                            onClick = {
+                                showAttach = false
+                                showStickers = true
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(if (recordingVoice) "停止并发送语音" else "语音消息") },
+                            leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) },
+                            onClick = {
+                                showAttach = false
+                                if (!recordingVoice) {
+                                    val granted = ContextCompat.checkSelfPermission(
+                                        context,
+                                        Manifest.permission.RECORD_AUDIO,
+                                    ) == PackageManager.PERMISSION_GRANTED
+                                    if (!granted) {
+                                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                    } else {
+                                        runCatching { audioRecorder.start() }
+                                            .onSuccess { recordingVoice = true }
+                                            .onFailure {
+                                                scope.launch { snackbar.showSnackbar("录音启动失败") }
+                                            }
+                                    }
+                                } else {
+                                    val file = audioRecorder.stop()
+                                    recordingVoice = false
+                                    if (file != null) {
+                                        vm.sendAttachment(Uri.fromFile(file), "audio")
+                                    }
+                                }
+                            },
+                        )
+                    }
+                }
+
                 IconButton(
                     enabled = persona != null,
                     onClick = {
@@ -437,11 +547,114 @@ fun ChatScreen(
             }
         }
     }
+    if (showStickers) {
+        val stickers = listOf("😀", "🥰", "😭", "😡", "🤔", "👍", "🐟", "💙", "✨", "🎉")
+        AlertDialog(
+            onDismissRequest = { showStickers = false },
+            title = { Text("表情包") },
+            text = {
+                Column {
+                    stickers.chunked(5).forEach { row ->
+                        Row {
+                            row.forEach { sticker ->
+                                TextButton(onClick = {
+                                    showStickers = false
+                                    vm.send(sticker)
+                                }) {
+                                    Text(sticker, fontSize = 26.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showStickers = false }) { Text("关闭") }
+            },
+        )
+    }
 }
 
 private val chatTimeFormat = SimpleDateFormat("MM-dd HH:mm", Locale.CHINA)
 
 private fun formatTime(at: Long): String = chatTimeFormat.format(Date(at))
+
+@Composable
+private fun ChatAttachment(uri: String, type: String?, name: String?) {
+    val context = LocalContext.current
+    when (type) {
+        "image" -> {
+            val bitmap by produceState<Bitmap?>(null, uri) {
+                value = withContext(Dispatchers.IO) {
+                    runCatching { BitmapFactory.decodeFile(uri) }.getOrNull()
+                }
+            }
+            bitmap?.let { image ->
+                Image(
+                    bitmap = image.asImageBitmap(),
+                    contentDescription = name ?: "图片",
+                    modifier = Modifier
+                        .widthIn(max = 220.dp)
+                        .heightIn(max = 240.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop,
+                )
+            }
+        }
+
+        "audio" -> {
+            val player = remember { MediaPlayer() }
+            var playing by remember { mutableStateOf(false) }
+            DisposableEffect(Unit) {
+                onDispose { runCatching { player.release() } }
+            }
+            Row(
+                modifier = Modifier
+                    .clickable {
+                        if (playing) {
+                            runCatching { player.pause() }
+                            playing = false
+                        } else {
+                            runCatching {
+                                player.reset()
+                                player.setDataSource(uri)
+                                player.setOnCompletionListener { playing = false }
+                                player.prepare()
+                                player.start()
+                                playing = true
+                            }.onFailure { playing = false }
+                        }
+                    }
+                    .padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.PlayArrow,
+                    contentDescription = "播放语音",
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(" 语音", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+
+        else -> {
+            Row(
+                modifier = Modifier.padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    Icons.Default.Videocam,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                )
+                Text(
+                    text = if (type == "video") " 视频" else " ${name ?: "文件"}",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun ChatBackground(color: Int, imageUri: String?) {
@@ -481,7 +694,15 @@ private fun ChatBackground(color: Int, imageUri: String?) {
 }
 
 @Composable
-private fun MessageBubble(message: ChatMessage, typing: Boolean) {
+private fun MessageBubble(
+    message: ChatMessage,
+    typing: Boolean,
+    assistantCharacter: com.dsh.companion.data.Character?,
+    assistantAvatarUri: String?,
+    assistantName: String,
+    userAvatarUri: String?,
+    userName: String,
+) {
     val isUser = message.role == ChatMessage.ROLE_USER
     val container = when {
         message.error -> MaterialTheme.colorScheme.errorContainer
@@ -497,22 +718,66 @@ private fun MessageBubble(message: ChatMessage, typing: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start,
+        verticalAlignment = Alignment.Bottom,
     ) {
-        Surface(
-            color = container,
-            shape = RoundedCornerShape(
-                topStart = 18.dp,
-                topEnd = 18.dp,
-                bottomStart = if (isUser) 18.dp else 5.dp,
-                bottomEnd = if (isUser) 5.dp else 18.dp,
-            ),
-            modifier = Modifier.widthIn(max = 320.dp),
+        if (!isUser) {
+            ChatAvatar(
+                uri = assistantAvatarUri,
+                character = assistantCharacter,
+                name = assistantName,
+                size = 38.dp,
+            )
+            Box(Modifier.width(6.dp))
+        }
+
+        Column(
+            horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
+            modifier = Modifier.widthIn(max = 310.dp),
         ) {
             Text(
-                text = if (typing) "…" else message.content,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                color = contentColor,
-                style = MaterialTheme.typography.bodyMedium,
+                text = if (isUser) userName else assistantName,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+            )
+            Surface(
+                color = container,
+                shape = RoundedCornerShape(
+                    topStart = 18.dp,
+                    topEnd = 18.dp,
+                    bottomStart = if (isUser) 18.dp else 5.dp,
+                    bottomEnd = if (isUser) 5.dp else 18.dp,
+                ),
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    message.attachmentUri?.let { uri ->
+                        ChatAttachment(
+                            uri = uri,
+                            type = message.attachmentType,
+                            name = message.attachmentName,
+                        )
+                    }
+                    if (message.content.isNotBlank() && message.content != "[图片]" &&
+                        message.content != "[视频]" && message.content != "[语音]"
+                    ) {
+                        Text(
+                            text = if (typing) "…" else message.content,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            color = contentColor,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+        }
+
+        if (isUser) {
+            Box(Modifier.width(6.dp))
+            ChatAvatar(
+                uri = userAvatarUri,
+                character = null,
+                name = userName,
+                size = 38.dp,
             )
         }
     }
