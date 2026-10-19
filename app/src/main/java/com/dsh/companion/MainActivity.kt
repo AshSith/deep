@@ -7,6 +7,8 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.core.view.WindowCompat
@@ -16,10 +18,13 @@ import com.dsh.companion.ui.theme.CompanionTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
+    private var pendingConversation by mutableStateOf<String?>(null)
+    private var pendingGroup by mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             val themeColor by viewModel.themeColor.collectAsStateWithLifecycle()
             val primary = Color(themeColor)
@@ -30,9 +35,29 @@ class MainActivity : ComponentActivity() {
                 controller.isAppearanceLightNavigationBars = light
             }
             CompanionTheme(primary = primary) {
-                AppRoot(viewModel)
+                AppRoot(
+                    vm = viewModel,
+                    pendingConversation = pendingConversation,
+                    pendingGroup = pendingGroup,
+                    onPendingConsumed = {
+                        pendingConversation = null
+                        pendingGroup = null
+                    },
+                )
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(intent: android.content.Intent?) {
+        intent ?: return
+        intent.getStringExtra(EXTRA_OPEN_CONVERSATION)?.let { pendingConversation = it }
+        intent.getStringExtra(EXTRA_OPEN_GROUP)?.let { pendingGroup = it }
     }
 
     override fun onResume() {
@@ -52,5 +77,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val EXTRA_OPEN_CHAT = "com.dsh.companion.OPEN_CHAT"
+        const val EXTRA_OPEN_CONVERSATION = "com.dsh.companion.OPEN_CONVERSATION"
+        const val EXTRA_OPEN_GROUP = "com.dsh.companion.OPEN_GROUP"
+        const val EXTRA_OPEN_PERSONA = "com.dsh.companion.OPEN_PERSONA"
     }
 }
