@@ -453,14 +453,14 @@ class PetOverlayService : Service() {
         fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
         val panelWidth = sdp(250)
-        val panelHeight = (metrics.heightPixels * 0.82f).toInt()
+        val maxPanelHeight = (metrics.heightPixels * 0.82f).toInt()
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(sdp(2), sdp(4), sdp(2), sdp(8))
         }
         val scroll = ScrollView(this).apply {
-            isFillViewport = true
+            isFillViewport = false
             addView(box)
             background = GradientDrawable().apply {
                 cornerRadius = sdp(18).toFloat()
@@ -588,7 +588,7 @@ class PetOverlayService : Service() {
 
         val params = WindowManager.LayoutParams(
             panelWidth,
-            panelHeight,
+            WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
@@ -602,7 +602,7 @@ class PetOverlayService : Service() {
                 (pet?.x ?: 0) + (pet?.width ?: 0) + sdp(8)
             }
             x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
-            y = (pet?.y ?: sdp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
+            y = (pet?.y ?: sdp(40)).coerceIn(0, max(0, metrics.heightPixels - maxPanelHeight))
         }
 
         showScrim()
