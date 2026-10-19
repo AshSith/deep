@@ -73,6 +73,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _chatPreviews = MutableStateFlow<List<ChatPreview>>(emptyList())
     val chatPreviews: StateFlow<List<ChatPreview>> = _chatPreviews.asStateFlow()
 
+    private val _desktopMotionFrequency = MutableStateFlow(settings.desktopMotionFrequency)
+    val desktopMotionFrequency: StateFlow<Int> = _desktopMotionFrequency.asStateFlow()
+
     private val _activeConversationId = MutableStateFlow<String?>(null)
     val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
 
@@ -171,6 +174,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _stageClip.value = "idle"
         PetBus.emit(PetEvent.Clip("idle", once = false))
         refreshChatPreviews()
+    }
+
+    fun setDesktopMotionFrequency(value: Int) {
+        val next = value.coerceIn(0, 3)
+        settings.desktopMotionFrequency = next
+        _desktopMotionFrequency.value = next
+        PetBus.emit(PetEvent.MotionFrequencyChanged)
     }
 
     fun openConversation(conversationId: String) {
@@ -306,7 +316,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 _stageClip.value = "success"
                 PetBus.emit(PetEvent.Success)
                 if (!AppVisibility.foreground.value) {
-                    PetBus.emit(PetEvent.Say(reply))
+                    PetBus.emit(
+                        PetEvent.Say(
+                            text = reply,
+                            conversationId = _activeConversationId.value,
+                            personaId = persona.id,
+                        )
+                    )
                 }
                 if (persona.speakReplies) speakReply(persona, reply)
 
