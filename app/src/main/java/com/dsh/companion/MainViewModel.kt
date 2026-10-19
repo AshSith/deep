@@ -76,6 +76,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _desktopMotionFrequency = MutableStateFlow(settings.desktopMotionFrequency)
     val desktopMotionFrequency: StateFlow<Int> = _desktopMotionFrequency.asStateFlow()
 
+    private val _userAvatarUri = MutableStateFlow(settings.userAvatarUri)
+    val userAvatarUri: StateFlow<String?> = _userAvatarUri.asStateFlow()
+
+    private val _userName = MutableStateFlow(settings.userName)
+    val userName: StateFlow<String> = _userName.asStateFlow()
+
     private val _activeConversationId = MutableStateFlow<String?>(null)
     val activeConversationId: StateFlow<String?> = _activeConversationId.asStateFlow()
 
@@ -176,6 +182,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         refreshChatPreviews()
     }
 
+    fun setUserAvatarUri(uri: String?) {
+        settings.userAvatarUri = uri
+        _userAvatarUri.value = uri
+    }
+
+    fun setUserName(name: String) {
+        val next = name.trim().ifBlank { "我" }.take(20)
+        settings.userName = next
+        _userName.value = next
+    }
+
     fun setDesktopMotionFrequency(value: Int) {
         val next = value.coerceIn(0, 3)
         settings.desktopMotionFrequency = next
@@ -200,6 +217,44 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _stageClip.value = "idle"
         PetBus.emit(PetEvent.Clip("idle", once = false))
         refreshChatPreviews()
+    }
+
+    fun toggleConversationPinned(conversationId: String) {
+        val conversation = chatStore.allConversations().firstOrNull { it.id == conversationId } ?: return
+        chatStore.update(conversation.copy(pinned = !conversation.pinned))
+        refreshChatPreviews()
+    }
+
+    fun toggleConversationUnread(conversationId: String) {
+        val conversation = chatStore.allConversations().firstOrNull { it.id == conversationId } ?: return
+        chatStore.update(conversation.copy(unread = !conversation.unread))
+        refreshChatPreviews()
+    }
+
+    fun deleteConversation(conversationId: String) {
+        chatStore.delete(conversationId)
+        if (_activeConversationId.value == conversationId) {
+            _activeConversationId.value = null
+            _messages.value = emptyList()
+        }
+        refreshChatPreviews()
+    }
+
+    fun openLatestConversation(personaId: String) {
+        val persona = personaStore.get(personaId) ?: return
+        val latest = chatStore.conversations(persona.id).firstOrNull()
+        if (latest != null) {
+            openConversation(latest.id)
+            return
+        }
+        sendJob?.cancel()
+        sendJob = null
+        _streaming.value = false
+        _activeId.value = persona.id
+        settings.activePersonaId = persona.id
+        loadedFor = persona.id
+        _activePersona.value = persona
+        newChat()
     }
 
     private fun refreshChatPreviews() {
@@ -275,8 +330,50 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun send(raw: String) {
+        sendInternal(raw, null)
+    }
+
+    fun sendAttachment(uri: Uri, type: String) {
+        val file = copyAttachment(uri, type) ?: run {
+            _notice.value = "读取文件失败"
+            return
+        }
+        val label = when (type) {
+            "image" -> "[图片]"
+            "video" -> "[视频]"
+            "audio" -> "[语音]"
+            else -> "[文件]"
+        }
+        val attachment = ChatMessage(
+            role = ChatMessage.ROLE_USER,
+            content = label,
+            attachmentUri = file.absolutePath,
+            attachmentType = type,
+            attachmentName = file.name,
+        )
+        sendInternal(label, attachment)
+    }
+
+    private fun copyAttachment(uri: Uri, type: String): File? {
+        val ext = when (type) {
+            "image" -> "jpg"
+            "video" -> "mp4"
+            "audio" -> "m4a"
+            else -> "bin"
+        }
+        val dir = File(getApplication<Application>().filesDir, "chat_media").apply { mkdirs() }
+        val file = File(dir, "media-${System.currentTimeMillis()}.$ext")
+        return runCatching {
+            getApplication<Application>().contentResolver.openInputStream(uri)?.use { input ->
+                file.outputStream().use { output -> input.copyTo(output) }
+            } ?: return null
+            if (file.length() > 0) file else null
+        }.getOrNull()
+    }
+
+    private fun sendInternal(raw: String, attachment: ChatMessage?) {
         val text = raw.trim()
-        if (text.isEmpty() || _streaming.value) return
+        if ((text.isEmpty() && attachment == null) || _streaming.value) return
         val persona = _activePersona.value ?: return
         val conversationId = _activeConversationId.value ?: return
 
@@ -290,13 +387,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
 
-        val user = ChatMessage(role = ChatMessage.ROLE_USER, content = text)
+        val user = attachment ?: ChatMessage(role = ChatMessage.ROLE_USER, content = text)
         val assistant = ChatMessage(role = ChatMessage.ROLE_ASSISTANT, content = "")
         val history = _messages.value + user
 
         _messages.value = history + assistant
         val firstUserMessage = history.count { it.role == ChatMessage.ROLE_USER } == 1
-        chatStore.touch(conversationId, if (firstUserMessage) text.take(18) else null)
+        chatStore.touch(conversationId, if (firstUserMessage) user.content.take(18) else null)
         _conversations.value = chatStore.conversations(persona.id)
         _streaming.value = true
         _stageClip.value = "thinking"
