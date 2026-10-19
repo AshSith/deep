@@ -25,6 +25,18 @@ class SettingsStore(context: Context) {
         get() = prefs.getInt(KEY_Y, -1)
         set(value) = prefs.edit().putInt(KEY_Y, value).apply()
 
+    var overlayXF: Float
+        get() = prefs.getFloat(KEY_XF, -1f)
+        set(value) = prefs.edit().putFloat(KEY_XF, value).apply()
+
+    var overlayYF: Float
+        get() = prefs.getFloat(KEY_YF, -1f)
+        set(value) = prefs.edit().putFloat(KEY_YF, value).apply()
+
+    var desktopMotionFrequency: Int
+        get() = prefs.getInt(KEY_MOTION_FREQUENCY, 1).coerceIn(0, 3)
+        set(value) = prefs.edit().putInt(KEY_MOTION_FREQUENCY, value.coerceIn(0, 3)).apply()
+
     var overlayBrightness: Float
         get() = prefs.getFloat(KEY_BRIGHTNESS, 1f)
         set(value) = prefs.edit().putFloat(KEY_BRIGHTNESS, value.coerceIn(0.5f, 1.5f)).apply()
@@ -69,6 +81,9 @@ class SettingsStore(context: Context) {
         const val KEY_SCALE = "overlay_scale"
         const val KEY_X = "overlay_x"
         const val KEY_Y = "overlay_y"
+        const val KEY_XF = "overlay_x_fraction"
+        const val KEY_YF = "overlay_y_fraction"
+        const val KEY_MOTION_FREQUENCY = "desktop_motion_frequency"
         const val KEY_BRIGHTNESS = "overlay_brightness"
         const val KEY_FLIPPED = "overlay_flipped"
         const val KEY_TAP_RESPONDS = "tap_responds"
