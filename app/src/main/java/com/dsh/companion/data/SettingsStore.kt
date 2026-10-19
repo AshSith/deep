@@ -79,6 +79,22 @@ class SettingsStore(context: Context) {
         }
         set(value) = prefs.edit().putInt(KEY_BUBBLE_TEXT_COLOR, value).apply()
 
+    var chatUserBubbleColor: Int
+        get() = prefs.getInt(KEY_CHAT_USER_BUBBLE, 0)
+        set(value) = prefs.edit().putInt(KEY_CHAT_USER_BUBBLE, value).apply()
+
+    var chatAssistantBubbleColor: Int
+        get() = prefs.getInt(KEY_CHAT_AI_BUBBLE, 0)
+        set(value) = prefs.edit().putInt(KEY_CHAT_AI_BUBBLE, value).apply()
+
+    var groupUserBubbleColor: Int
+        get() = prefs.getInt(KEY_GROUP_USER_BUBBLE, 0)
+        set(value) = prefs.edit().putInt(KEY_GROUP_USER_BUBBLE, value).apply()
+
+    var groupAssistantBubbleColor: Int
+        get() = prefs.getInt(KEY_GROUP_AI_BUBBLE, 0)
+        set(value) = prefs.edit().putInt(KEY_GROUP_AI_BUBBLE, value).apply()
+
     var hasSeenIntro: Boolean
         get() = prefs.getBoolean(KEY_INTRO, false)
         set(value) = prefs.edit().putBoolean(KEY_INTRO, value).apply()
@@ -109,6 +125,10 @@ class SettingsStore(context: Context) {
         const val KEY_CHAT_BG_IMAGE = "chat_bg_image"
         const val KEY_BUBBLE_COLOR = "bubble_color"
         const val KEY_BUBBLE_TEXT_COLOR = "bubble_text_color"
+        const val KEY_CHAT_USER_BUBBLE = "chat_user_bubble"
+        const val KEY_CHAT_AI_BUBBLE = "chat_ai_bubble"
+        const val KEY_GROUP_USER_BUBBLE = "group_user_bubble"
+        const val KEY_GROUP_AI_BUBBLE = "group_ai_bubble"
         const val KEY_INTRO = "seen_intro"
         const val KEY_USER_AVATAR = "user_avatar"
         const val KEY_USER_NAME = "user_name"
