@@ -104,6 +104,7 @@ class PetOverlayService : Service() {
 
     private var menuView: View? = null
     private var menuParams: WindowManager.LayoutParams? = null
+    private var scrimView: View? = null
     private var collapsed = false
 
     private val pokeLines = listOf(
@@ -147,7 +148,10 @@ class PetOverlayService : Service() {
         scheduleAutonomousAction()
         handler.postDelayed({
             if (!AppVisibility.foreground.value) {
-                showBubble("我在这儿。点一下戳我，双击打开聊天。")
+                showBubble(
+                    "我在这儿。点一下戳我，双击打开聊天。",
+                    personaId = settings.activePersonaId ?: personas.first()?.id,
+                )
             }
         }, 1600)
     }
@@ -256,7 +260,10 @@ class PetOverlayService : Service() {
                 }
                 if (!dragging && settings.tapResponds) {
                     playClip("poke", once = true)
-                    showBubble(pokeLines.random())
+                    showBubble(
+                        pokeLines.random(),
+                        personaId = settings.activePersonaId ?: personas.first()?.id,
+                    )
                 }
                 return true
             }
@@ -415,60 +422,78 @@ class PetOverlayService : Service() {
     }
 
     private fun hideMenu() {
-        val view = menuView ?: return
+        menuView?.let { runCatching { windowManager.removeView(it) } }
+        scrimView?.let { runCatching { windowManager.removeView(it) } }
         menuView = null
         menuParams = null
-        runCatching { windowManager.removeView(view) }
+        scrimView = null
+    }
+
+    private fun showScrim() {
+        val scrim = View(this).apply {
+            setBackgroundColor(0x01000000)
+            isClickable = true
+            setOnClickListener { hideMenu() }
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT,
+            WindowManager.LayoutParams.MATCH_PARENT,
+            overlayType(),
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            PixelFormat.TRANSLUCENT,
+        )
+        runCatching { windowManager.addView(scrim, params) }
+        scrimView = scrim
     }
 
     private fun showMenu() {
         hideMenu()
+        val scale = settings.menuScale
+        fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
-        val panelWidth = dp(250)
+        val panelWidth = sdp(250)
         val panelHeight = (metrics.heightPixels * 0.82f).toInt()
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(8))
+            setPadding(sdp(2), sdp(4), sdp(2), sdp(8))
         }
         val scroll = ScrollView(this).apply {
             isFillViewport = true
             addView(box)
             background = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = sdp(18).toFloat()
                 setColor(0xFFFFFBF0.toInt())
-                setStroke(dp(1), 0x33C9A96A)
+                setStroke(sdp(1), 0x33C9A96A)
             }
         }
 
-        val title = TextView(this).apply {
+        box.addView(TextView(this).apply {
             text = "桌宠设置"
-            textSize = 18f
+            textSize = 18f * scale
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xFF2F2A22.toInt())
-            setPadding(dp(16), dp(12), dp(16), dp(4))
-        }
-        box.addView(title)
+            setPadding(sdp(16), sdp(12), sdp(16), sdp(4))
+        })
 
         fun addItem(label: String, action: () -> Unit) {
-            val item = TextView(this).apply {
+            box.addView(TextView(this).apply {
                 text = label
-                textSize = 16f
+                textSize = 16f * scale
                 setTextColor(0xFF2F2A22.toInt())
-                setPadding(dp(16), dp(13), dp(16), dp(13))
+                setPadding(sdp(16), sdp(13), sdp(16), sdp(13))
                 isClickable = true
                 setOnClickListener { action() }
-            }
-            box.addView(item)
+            })
         }
 
-        fun addDivider() {
-            box.addView(View(this).apply {
-                setBackgroundColor(0x22A08050)
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    dp(1),
-                )
+        fun addLabel(text: String) {
+            box.addView(TextView(this).apply {
+                this.text = text
+                textSize = 15f * scale
+                setTextColor(0xFF8A6A24.toInt())
+                setPadding(sdp(16), sdp(9), sdp(16), 0)
             })
         }
 
@@ -476,68 +501,48 @@ class PetOverlayService : Service() {
             settings.tapResponds = !settings.tapResponds
             hideMenu()
         }
-        addItem("动作列表") {
+        addItem("动作") {
             showActionList()
         }
         addItem("随机动作") {
             randomAction()
             hideMenu()
         }
-        addItem("待机") {
-            playClip("idle", once = false)
-            hideMenu()
-        }
-        addItem("转向") {
-            settings.overlayFlipped = !settings.overlayFlipped
-            applyFlip()
-            hideMenu()
-        }
-        addItem("摸头") {
-            playClip("head_pat", once = true)
-            showBubble("呼噜呼噜…")
-            hideMenu()
-        }
-        addItem("漫游") {
-            wander()
-            hideMenu()
-        }
-        addDivider()
 
         val sizeLabel = TextView(this).apply {
-            text = "大小：${(settings.overlayScale * 100).toInt()}%"
-            textSize = 15f
+            text = "桌宠大小：${(settings.overlayScale * 100).toInt()}%"
+            textSize = 15f * scale
             setTextColor(0xFF8A6A24.toInt())
-            setPadding(dp(16), dp(10), dp(16), 0)
+            setPadding(sdp(16), sdp(9), sdp(16), 0)
         }
         box.addView(sizeLabel)
-        val sizeSeek = SeekBar(this).apply {
+        box.addView(SeekBar(this).apply {
             max = 260
             progress = ((settings.overlayScale * 100).toInt() - 40).coerceIn(0, 260)
-            setPadding(dp(14), dp(2), dp(14), dp(2))
+            setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val percent = progress + 40
-                    sizeLabel.text = "大小：$percent%"
+                    sizeLabel.text = "桌宠大小：$percent%"
                     applyScale(percent / 100f)
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
-        }
-        box.addView(sizeSeek)
+        })
 
         val brightnessLabel = TextView(this).apply {
             text = "亮度：${(settings.overlayBrightness * 100).toInt()}%"
-            textSize = 15f
+            textSize = 15f * scale
             setTextColor(0xFF8A6A24.toInt())
-            setPadding(dp(16), dp(10), dp(16), 0)
+            setPadding(sdp(16), sdp(9), sdp(16), 0)
         }
         box.addView(brightnessLabel)
-        val brightnessSeek = SeekBar(this).apply {
+        box.addView(SeekBar(this).apply {
             max = 100
             progress = ((settings.overlayBrightness * 100).toInt() - 50).coerceIn(0, 100)
-            setPadding(dp(14), dp(2), dp(14), dp(2))
+            setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val percent = progress + 50
@@ -549,23 +554,34 @@ class PetOverlayService : Service() {
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
                 override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
             })
-        }
-        box.addView(brightnessSeek)
+        })
 
-        addItem("恢复默认亮度") {
-            settings.overlayBrightness = 1f
-            applyBrightness()
-            hideMenu()
+        val uiLabel = TextView(this).apply {
+            text = "界面大小：${(settings.menuScale * 100).toInt()}%"
+            textSize = 15f * scale
+            setTextColor(0xFF8A6A24.toInt())
+            setPadding(sdp(16), sdp(9), sdp(16), 0)
         }
-        addDivider()
-        addItem("回到右下角") {
-            moveToCorner()
-            hideMenu()
-        }
-        addItem("收起（挂到侧边）") {
-            collapseToSide()
-            hideMenu()
-        }
+        box.addView(uiLabel)
+        box.addView(SeekBar(this).apply {
+            max = 55
+            progress = ((settings.menuScale * 100).toInt() - 75).coerceIn(0, 55)
+            setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val percent = progress + 75
+                    uiLabel.text = "界面大小：$percent%"
+                    settings.menuScale = percent / 100f
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {
+                    hideMenu()
+                    showMenu()
+                }
+            })
+        })
+
         addItem("关闭桌宠") {
             stopSelf()
         }
@@ -580,15 +596,16 @@ class PetOverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             val pet = petParams
-            x = if (pet != null && pet.x > panelWidth + dp(12)) {
-                pet.x - panelWidth - dp(8)
+            x = if (pet != null && pet.x > panelWidth + sdp(12)) {
+                pet.x - panelWidth - sdp(8)
             } else {
-                (pet?.x ?: 0) + (pet?.width ?: 0) + dp(8)
+                (pet?.x ?: 0) + (pet?.width ?: 0) + sdp(8)
             }
             x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
-            y = (pet?.y ?: dp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
+            y = (pet?.y ?: sdp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
         }
 
+        showScrim()
         menuView = scroll
         menuParams = params
         runCatching { windowManager.addView(scroll, params) }
@@ -620,7 +637,7 @@ class PetOverlayService : Service() {
         }
 
         val title = TextView(this).apply {
-            text = "动作列表"
+            text = "动作"
             textSize = 18f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xFF2F2A22.toInt())
@@ -663,6 +680,7 @@ class PetOverlayService : Service() {
             y = (pet?.y ?: dp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
         }
 
+        showScrim()
         menuView = scroll
         menuParams = params
         runCatching { windowManager.addView(scroll, params) }
@@ -918,13 +936,14 @@ class PetOverlayService : Service() {
         val view = TextView(this).apply {
             this.text = text.take(220)
             setTextColor(settings.bubbleTextColor)
-            textSize = 14f
+            textSize = 15f
             maxLines = 5
+            setLineSpacing(dp(2).toFloat(), 1f)
             ellipsize = android.text.TextUtils.TruncateAt.END
-            setPadding(dp(14), dp(10), dp(14), dp(18))
+            setPadding(dp(16), dp(11), dp(16), dp(20))
             background = BubbleDrawable(
                 fillColor = settings.bubbleColor,
-                strokeColor = 0x33FFFFFF,
+                strokeColor = 0x33000000,
                 density = resources.displayMetrics.density,
             )
             elevation = dp(8).toFloat()
@@ -954,7 +973,7 @@ class PetOverlayService : Service() {
                     MotionEvent.ACTION_UP -> {
                         if (!bubbleMoved) {
                             val now = System.currentTimeMillis()
-                            if (now - lastBubbleTap in 1..350) {
+                            if (now - lastBubbleTap in 1..450) {
                                 lastBubbleTap = 0L
                                 hideBubble()
                                 openChat()
