@@ -1,5 +1,7 @@
 package com.dsh.companion.group
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,9 +19,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.HorizontalDivider
@@ -43,6 +49,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +58,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.data.GroupChat
+import com.dsh.companion.ui.ChatAttachment
 import com.dsh.companion.ui.components.CharacterThumb
 import com.dsh.companion.ui.components.ChatAvatar
 
@@ -65,10 +74,20 @@ fun GroupChatScreen(
     val sending by vm.sending.collectAsStateWithLifecycle()
     val personas by vm.personas.collectAsStateWithLifecycle()
     val characters by vm.characters.collectAsStateWithLifecycle()
+    val groupUserColor by vm.groupUserBubbleColor.collectAsStateWithLifecycle()
+    val groupAssistantColor by vm.groupAssistantBubbleColor.collectAsStateWithLifecycle()
 
     var input by rememberSaveable { mutableStateOf("") }
     var showSettings by remember { mutableStateOf(false) }
+    var showAttach by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.sendAttachment(uri, "image")
+    }
+    val videoPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) vm.sendAttachment(uri, "video")
+    }
 
     LaunchedEffect(groupId) {
         vm.openGroup(groupId)
@@ -156,6 +175,9 @@ fun GroupChatScreen(
                         message = message,
                         personas = members,
                         characters = characters,
+                        knownNames = personas.map { it.name },
+                        userBubbleColor = groupUserColor,
+                        assistantBubbleColor = groupAssistantColor,
                     )
                 }
 
@@ -176,6 +198,28 @@ fun GroupChatScreen(
                     .padding(horizontal = 10.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                Box {
+                    IconButton(onClick = { showAttach = true }) {
+                        Icon(Icons.Default.AttachFile, contentDescription = "添加附件")
+                    }
+                    DropdownMenu(expanded = showAttach, onDismissRequest = { showAttach = false }) {
+                        DropdownMenuItem(
+                            text = { Text("图片") },
+                            onClick = {
+                                showAttach = false
+                                imagePicker.launch(arrayOf("image/*"))
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text("视频") },
+                            leadingIcon = { Icon(Icons.Default.Videocam, contentDescription = null) },
+                            onClick = {
+                                showAttach = false
+                                videoPicker.launch(arrayOf("video/*"))
+                            },
+                        )
+                    }
+                }
                 OutlinedTextField(
                     value = input,
                     onValueChange = { input = it },
@@ -220,6 +264,9 @@ private fun GroupMessageRow(
     message: ChatMessage,
     personas: List<com.dsh.companion.data.Persona>,
     characters: List<com.dsh.companion.data.Character>,
+    knownNames: List<String>,
+    userBubbleColor: Int,
+    assistantBubbleColor: Int,
 ) {
     val isUser = message.role == ChatMessage.ROLE_USER
     val persona = personas.firstOrNull { it.id == message.personaId }
@@ -231,25 +278,51 @@ private fun GroupMessageRow(
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.Top,
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shape = RoundedCornerShape(18.dp),
-                modifier = Modifier.widthIn(max = 300.dp),
-            ) {
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = message.content,
-                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    style = MaterialTheme.typography.bodyMedium,
+                    text = "我",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
                 )
+                Surface(
+                    color = if (userBubbleColor != 0) Color(userBubbleColor) else MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = 18.dp,
+                        bottomEnd = 5.dp,
+                    ),
+                    modifier = Modifier.widthIn(max = 300.dp),
+                ) {
+                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        message.attachmentUri?.let { uri ->
+                            ChatAttachment(
+                                uri = uri,
+                                type = message.attachmentType,
+                                name = message.attachmentName,
+                            )
+                        }
+                        Text(
+                            text = message.content,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            color = if (userBubbleColor != 0) {
+                                if (Color(userBubbleColor).luminance() > 0.55f) Color.Black else Color.White
+                            } else {
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
             }
             Box(Modifier.width(6.dp))
             ChatAvatar(uri = null, character = null, name = "我", size = 36.dp)
         }
     } else {
-        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
             ChatAvatar(
                 uri = persona?.avatarUri,
                 character = character,
@@ -269,28 +342,64 @@ private fun GroupMessageRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Surface(
-                    color = if (message.error) {
-                        MaterialTheme.colorScheme.errorContainer
-                    } else {
-                        MaterialTheme.colorScheme.surfaceVariant
+                    color = when {
+                        message.error -> MaterialTheme.colorScheme.errorContainer
+                        assistantBubbleColor != 0 -> Color(assistantBubbleColor)
+                        else -> MaterialTheme.colorScheme.surfaceVariant
                     },
-                    shape = RoundedCornerShape(18.dp),
+                    shape = RoundedCornerShape(
+                        topStart = 18.dp,
+                        topEnd = 18.dp,
+                        bottomStart = 5.dp,
+                        bottomEnd = 18.dp,
+                    ),
                     modifier = Modifier.widthIn(max = 300.dp),
                 ) {
-                    Text(
-                        text = message.content,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                        color = if (message.error) {
-                            MaterialTheme.colorScheme.onErrorContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
+                    Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp)) {
+                        message.attachmentUri?.let { uri ->
+                            ChatAttachment(
+                                uri = uri,
+                                type = message.attachmentType,
+                                name = message.attachmentName,
+                            )
+                        }
+                        Text(
+                            text = cleanGroupText(message.content, knownNames),
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                            color = when {
+                                message.error -> MaterialTheme.colorScheme.onErrorContainer
+                                assistantBubbleColor != 0 ->
+                                    if (Color(assistantBubbleColor).luminance() > 0.55f) Color.Black else Color.White
+                                else -> MaterialTheme.colorScheme.onSurface
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                 }
             }
         }
     }
+}
+
+private fun cleanGroupText(content: String, names: List<String>): String {
+    var text = content.trim()
+    val sorted = names.filter { it.isNotBlank() }.sortedByDescending { it.length }
+    var changed = true
+    var guard = 0
+    while (changed && guard < 8) {
+        changed = false
+        guard++
+        for (name in sorted) {
+            for (sep in listOf("：", ":")) {
+                val prefix = "$name$sep"
+                if (text.startsWith(prefix)) {
+                    text = text.removePrefix(prefix).trim()
+                    changed = true
+                }
+            }
+        }
+    }
+    return text.trim()
 }
 
 @Composable
