@@ -76,6 +76,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _desktopMotionFrequency = MutableStateFlow(settings.desktopMotionFrequency)
     val desktopMotionFrequency: StateFlow<Int> = _desktopMotionFrequency.asStateFlow()
 
+    private val _duckSoundEnabled = MutableStateFlow(settings.duckSoundEnabled)
+    val duckSoundEnabled: StateFlow<Boolean> = _duckSoundEnabled.asStateFlow()
+
+    private val _extraPetPersonaIds = MutableStateFlow(
+        settings.extraPetPersonaIds.split(',').filter { it.isNotBlank() }.toSet()
+    )
+    val extraPetPersonaIds: StateFlow<Set<String>> = _extraPetPersonaIds.asStateFlow()
+
     private val _userAvatarUri = MutableStateFlow(settings.userAvatarUri)
     val userAvatarUri: StateFlow<String?> = _userAvatarUri.asStateFlow()
 
@@ -146,7 +154,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         speaker.init()
-        _characters.value = characterRepository.list()
+        refreshCharacters()
         refreshChatPreviews()
 
         viewModelScope.launch {
@@ -230,6 +238,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         settings.desktopMotionFrequency = next
         _desktopMotionFrequency.value = next
         PetBus.emit(PetEvent.MotionFrequencyChanged)
+    }
+
+    fun setDuckSoundEnabled(value: Boolean) {
+        settings.duckSoundEnabled = value
+        _duckSoundEnabled.value = value
+    }
+
+    fun setExtraPetPersonas(ids: Set<String>) {
+        settings.extraPetPersonaIds = ids.joinToString(",")
+        _extraPetPersonaIds.value = ids
+        PetBus.emit(PetEvent.RefreshPets)
     }
 
     fun openConversation(conversationId: String) {
@@ -322,7 +341,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshCharacters() {
-        _characters.value = characterRepository.list()
+        val list = characterRepository.list()
+        _characters.value = list
+        val fallback = list.firstOrNull()?.id ?: return
+        val valid = list.map { it.id }.toSet()
+        personaStore.personas.value
+            .filter { it.characterId !in valid }
+            .forEach { personaStore.upsert(it.copy(characterId = fallback)) }
     }
 
     fun deleteCharacter(id: String) {
