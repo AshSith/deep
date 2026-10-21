@@ -15,6 +15,7 @@ sealed interface PetEvent {
     data object Success : PetEvent
     data object Error : PetEvent
     data object MotionFrequencyChanged : PetEvent
+    data object RefreshPets : PetEvent
 }
 
 object PetBus {
