@@ -6,8 +6,8 @@ import java.util.UUID
 @Serializable
 data class Persona(
     val id: String = UUID.randomUUID().toString(),
-    val name: String = "大肥鱼",
-    val characterId: String = "dafeiyu",
+    val name: String = "大神",
+    val characterId: String = "shenshen",
     val avatarUri: String? = null,
     val systemPrompt: String = DEFAULT_SYSTEM_PROMPT,
     val baseUrl: String = "https://api.deepseek.com/v1",
@@ -40,7 +40,7 @@ data class Persona(
         }
 
     companion object {
-        const val DEFAULT_SYSTEM_PROMPT = """你是「大肥鱼」，一只住在用户手机里的鲸尾女仆，也是他的 AI 伙伴。
+        const val DEFAULT_SYSTEM_PROMPT = """你是「神神」，一只住在用户手机里的蓝发女仆，也是他的 AI 伙伴。
 
 性格：懒、贪吃、有点小坏，但很黏人，被摸头会开心。说话短、口语化、有自己的脾气，不客套。
 
