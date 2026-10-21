@@ -24,6 +24,14 @@ class PersonaStore(context: Context) {
 
     fun get(id: String?): Persona? = _personas.value.firstOrNull { it.id == id }
 
+    /** Re-read personas.json so long-lived services see edits made by the UI. */
+    fun reload() {
+        synchronized(lock) {
+            val loaded = JsonStore.read<List<Persona>>(file, emptyList())
+            if (loaded.isNotEmpty()) _personas.value = loaded
+        }
+    }
+
     fun first(): Persona? = _personas.value.firstOrNull()
 
     fun upsert(persona: Persona): Persona {
