@@ -106,6 +106,7 @@ class PetOverlayService : Service() {
     private var menuParams: WindowManager.LayoutParams? = null
     private var scrimView: View? = null
     private var collapsed = false
+    private var lastAutonomousClip: String? = null
 
     private val pokeLines = listOf(
         "干嘛戳我…",
@@ -417,8 +418,7 @@ class PetOverlayService : Service() {
     }
 
     private fun randomAction() {
-        val clips = listOf("poke", "head_pat", "tail", "eat_token", "shy", "bow")
-        playClip(clips.random(), once = true)
+        autonomousClip()?.let { playClip(it, once = true) }
     }
 
     private fun hideMenu() {
@@ -452,7 +452,7 @@ class PetOverlayService : Service() {
         val scale = settings.menuScale
         fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
-        val panelWidth = sdp(250)
+        val panelWidth = sdp(215)
         val maxPanelHeight = (metrics.heightPixels * 0.82f).toInt()
 
         val box = LinearLayout(this).apply {
@@ -596,10 +596,12 @@ class PetOverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             val pet = petParams
-            x = if (pet != null && pet.x > panelWidth + sdp(12)) {
-                pet.x - panelWidth - sdp(8)
+            val gap = sdp(4)
+            val rightSpace = if (pet != null) metrics.widthPixels - (pet.x + pet.width) else 0
+            x = if (pet != null && rightSpace < panelWidth + gap && pet.x > panelWidth + gap) {
+                pet.x - panelWidth - gap
             } else {
-                (pet?.x ?: 0) + (pet?.width ?: 0) + sdp(8)
+                (pet?.x ?: 0) + (pet?.width ?: 0) + gap
             }
             x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
             y = (pet?.y ?: sdp(40)).coerceIn(0, max(0, metrics.heightPixels - maxPanelHeight))
@@ -618,47 +620,59 @@ class PetOverlayService : Service() {
         val clips = character.meta.clips
         if (clips.isEmpty()) return
 
+        val scale = settings.menuScale
+        fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
-        val panelWidth = dp(270)
-        val panelHeight = (metrics.heightPixels * 0.78f).toInt()
+        val panelWidth = sdp(300)
+        val panelHeight = (metrics.heightPixels * 0.72f).toInt()
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(2), dp(4), dp(2), dp(8))
+            setPadding(sdp(2), sdp(4), sdp(2), sdp(6))
         }
         val scroll = ScrollView(this).apply {
-            isFillViewport = true
+            isFillViewport = false
             addView(box)
             background = GradientDrawable().apply {
-                cornerRadius = dp(18).toFloat()
+                cornerRadius = sdp(18).toFloat()
                 setColor(0xFFFFFBF0.toInt())
-                setStroke(dp(1), 0x33C9A96A)
+                setStroke(sdp(1), 0x33C9A96A)
             }
         }
 
-        val title = TextView(this).apply {
+        box.addView(TextView(this).apply {
             text = "动作"
-            textSize = 18f
+            textSize = 17f * scale
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(0xFF2F2A22.toInt())
-            setPadding(dp(16), dp(12), dp(16), dp(4))
-        }
-        box.addView(title)
+            setPadding(sdp(14), sdp(10), sdp(14), sdp(2))
+        })
 
-        clips.keys.sorted().forEach { name ->
-            val clip = clips[name] ?: return@forEach
-            val item = TextView(this).apply {
-                text = "${actionLabel(name)}  ·  $name"
-                textSize = 15f
-                setTextColor(0xFF2F2A22.toInt())
-                setPadding(dp(16), dp(11), dp(16), dp(11))
-                isClickable = true
-                setOnClickListener {
-                    playClip(name, once = !clip.loop)
-                    hideMenu()
-                }
+        val names = clips.keys.sorted()
+        names.chunked(2).forEach { pair ->
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                setPadding(sdp(4), 0, sdp(4), 0)
             }
-            box.addView(item)
+            pair.forEach { name ->
+                val clip = clips[name] ?: return@forEach
+                row.addView(TextView(this).apply {
+                    text = actionLabel(name)
+                    textSize = 14f * scale
+                    setTextColor(0xFF2F2A22.toInt())
+                    setPadding(sdp(10), sdp(9), sdp(10), sdp(9))
+                    isClickable = true
+                    layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    setOnClickListener {
+                        playClip(name, once = !clip.loop)
+                        hideMenu()
+                    }
+                })
+            }
+            if (pair.size == 1) {
+                row.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
+            }
+            box.addView(row)
         }
 
         val params = WindowManager.LayoutParams(
@@ -671,13 +685,15 @@ class PetOverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             val pet = petParams
-            x = if (pet != null && pet.x > panelWidth + dp(12)) {
-                pet.x - panelWidth - dp(8)
+            val gap = sdp(5)
+            val rightSpace = if (pet != null) metrics.widthPixels - (pet.x + pet.width) else 0
+            x = if (pet != null && rightSpace < panelWidth + gap && pet.x > panelWidth + gap) {
+                pet.x - panelWidth - gap
             } else {
-                (pet?.x ?: 0) + (pet?.width ?: 0) + dp(8)
+                (pet?.x ?: 0) + (pet?.width ?: 0) + gap
             }
             x = x.coerceIn(0, max(0, metrics.widthPixels - panelWidth))
-            y = (pet?.y ?: dp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
+            y = (pet?.y ?: sdp(40)).coerceIn(0, max(0, metrics.heightPixels - panelHeight))
         }
 
         showScrim()
@@ -843,13 +859,19 @@ class PetOverlayService : Service() {
     private fun autonomousClip(): String? {
         val persona = personas.get(settings.activePersonaId) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: return null
-        val clips = character.meta.clips.keys
-        val preferred = listOf(
-            "wave", "stretch", "tea", "head_pat", "tail", "hug",
-            "nap", "shy", "dance", "peek", "sigh", "pout", "eat_token",
+        val excluded = setOf(
+            "idle", "thinking", "error", "dragging", "dragging_release", "success",
         )
-        val available = preferred.filter { it in clips }
-        return (available.ifEmpty { clips.toList() }).randomOrNull()
+        val candidates = character.meta.clips.keys.filterNot { it in excluded }
+        if (candidates.isEmpty()) return null
+        val pool = if (candidates.size > 1) {
+            candidates.filterNot { it == lastAutonomousClip }
+        } else {
+            candidates
+        }
+        val chosen = pool.randomOrNull() ?: candidates.randomOrNull()
+        lastAutonomousClip = chosen
+        return chosen
     }
 
     private val autoChatRunnable = object : Runnable {
@@ -909,6 +931,20 @@ class PetOverlayService : Service() {
         if (!AppVisibility.foreground.value) {
             petView?.visibility = View.VISIBLE
         }
+
+        // Keep the window size tied to the user's scale, not the clip's intrinsic size.
+        val params = petParams
+        if (params != null) {
+            val expectedWidth = (baseWidth * settings.overlayScale).toInt().coerceAtLeast(dp(40))
+            val expectedHeight = (baseHeight * settings.overlayScale).toInt().coerceAtLeast(dp(45))
+            if (params.width != expectedWidth || params.height != expectedHeight) {
+                params.width = expectedWidth
+                params.height = expectedHeight
+                petView?.let { view -> runCatching { windowManager.updateViewLayout(view, params) } }
+                moveBubble()
+            }
+        }
+        petView?.scaleType = ImageView.ScaleType.FIT_CENTER
 
         revert?.let(handler::removeCallbacks)
         revert = null
