@@ -165,6 +165,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     _activePersona.value = null
                     return@collect
                 }
+                if (settings.desktopMainPersonaId == null) {
+                    settings.desktopMainPersonaId = chosen.id
+                }
                 if (loadedFor != chosen.id) {
                     loadedFor = chosen.id
                     _activeId.value = chosen.id
@@ -191,6 +194,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _streaming.value = false
         _activeId.value = id
         settings.activePersonaId = id
+        settings.desktopMainPersonaId = id
+        PetBus.emit(PetEvent.RefreshPets)
         loadedFor = id
         val conversation = chatStore.ensure(persona.id, persona.name)
         _activeConversationId.value = conversation.id
@@ -330,6 +335,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePersona(id: String) {
         personaStore.delete(id)
         chatStore.conversations(id).forEach { chatStore.delete(it.id) }
+        if (settings.desktopMainPersonaId == id) {
+            val fallback = personaStore.personas.value.firstOrNull()?.id
+            settings.desktopMainPersonaId = fallback
+            if (fallback != null) settings.activePersonaId = fallback
+        }
+        if (settings.extraPetPersonaIds.split(',').contains(id)) {
+            settings.extraPetPersonaIds = settings.extraPetPersonaIds
+                .split(',')
+                .filter { it.isNotBlank() && it != id }
+                .joinToString(",")
+        }
+        PetBus.emit(PetEvent.RefreshPets)
         if (_activeId.value == id) {
             loadedFor = null
             _activeId.value = null
