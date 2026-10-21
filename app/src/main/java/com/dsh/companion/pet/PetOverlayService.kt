@@ -17,6 +17,8 @@ import android.graphics.Typeface
 import android.graphics.drawable.AnimatedImageDrawable
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
+import android.media.AudioAttributes
+import android.media.SoundPool
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -43,6 +45,7 @@ import androidx.core.content.ContextCompat
 import com.dsh.companion.AppVisibility
 import com.dsh.companion.MainActivity
 import com.dsh.companion.R
+import com.dsh.companion.data.Character
 import com.dsh.companion.data.CharacterRepository
 import com.dsh.companion.data.ChatMessage
 import com.dsh.companion.data.GroupStore
@@ -72,6 +75,14 @@ class PetOverlayService : Service() {
     private var bubbleView: TextView? = null
     private var petParams: WindowManager.LayoutParams? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+
+    private data class ExtraPet(
+        val personaId: String,
+        val character: Character,
+        val view: ImageView,
+        val params: WindowManager.LayoutParams,
+    )
+    private val extraPets = mutableListOf<ExtraPet>()
 
     private val handler = Handler(Looper.getMainLooper())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
@@ -107,6 +118,8 @@ class PetOverlayService : Service() {
     private var scrimView: View? = null
     private var collapsed = false
     private var lastAutonomousClip: String? = null
+    private var soundPool: SoundPool? = null
+    private var quackId = 0
 
     private val pokeLines = listOf(
         "干嘛戳我…",
@@ -140,8 +153,19 @@ class PetOverlayService : Service() {
         characters = CharacterRepository(this)
         groupStore = GroupStore(this)
         groupEngine = GroupChatEngine(this)
+        soundPool = SoundPool.Builder()
+            .setMaxStreams(2)
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .build()
+        quackId = soundPool?.load(this, R.raw.duck_quack, 1) ?: 0
 
         showPet()
+        refreshExtraPets()
         playClip("idle", once = false)
         observeEvents()
         observeAppVisibility()
@@ -196,12 +220,15 @@ class PetOverlayService : Service() {
         scope.cancel()
         handler.removeCallbacks(autoChatRunnable)
         handler.removeCallbacks(autonomousActionRunnable)
+        soundPool?.release()
+        soundPool = null
         flingRunnable?.let(handler::removeCallbacks)
         velocityTracker?.recycle()
         menuView?.let { runCatching { windowManager.removeView(it) } }
         menuView = null
         handler.removeCallbacksAndMessages(null)
         bubbleView?.let { runCatching { windowManager.removeView(it) } }
+        clearExtraPets()
         petView?.let { runCatching { windowManager.removeView(it) } }
         bubbleView = null
         petView = null
@@ -260,6 +287,7 @@ class PetOverlayService : Service() {
                     return true
                 }
                 if (!dragging && settings.tapResponds) {
+                    playQuack()
                     playClip("poke", once = true)
                     showBubble(
                         pokeLines.random(),
@@ -358,6 +386,105 @@ class PetOverlayService : Service() {
         applyBrightness()
         applyFlip()
         persistPosition()
+    }
+
+    private fun playQuack() {
+        if (!settings.duckSoundEnabled) return
+        val id = quackId
+        if (id != 0) soundPool?.play(id, 0.85f, 0.85f, 1, 0, 1f)
+    }
+
+    private fun refreshExtraPets() {
+        clearExtraPets()
+        personas.reload()
+        val active = settings.activePersonaId
+        val ids = settings.extraPetPersonaIds
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() && it != active }
+            .distinct()
+            .take(3)
+        val area = safeArea()
+        ids.forEachIndexed { index, id ->
+            val persona = personas.get(id) ?: return@forEachIndexed
+            val character = characters.get(persona.characterId) ?: return@forEachIndexed
+            val width = (dp(160) * settings.overlayScale).toInt().coerceAtLeast(dp(40))
+            val height = (dp(180) * settings.overlayScale).toInt().coerceAtLeast(dp(45))
+            val view = ImageView(this).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                contentDescription = persona.name
+                setImageDrawable(characters.loadClip(character, "idle"))
+                (drawable as? AnimatedImageDrawable)?.start()
+                visibility = if (AppVisibility.foreground.value) View.GONE else View.VISIBLE
+            }
+            val params = WindowManager.LayoutParams(
+                width,
+                height,
+                overlayType(),
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+                    WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS or
+                    WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+                PixelFormat.TRANSLUCENT,
+            ).apply {
+                gravity = Gravity.TOP or Gravity.START
+                x = clampX(area.left + dp(16) + index * (width + dp(8)), width)
+                y = clampY(area.bottom - height - dp(28) - index * dp(14), height)
+            }
+            var downX = 0f
+            var downY = 0f
+            var startX = 0
+            var startY = 0
+            var moved = false
+            val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+                override fun onDown(e: MotionEvent): Boolean = true
+
+                override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                    playQuack()
+                    openChatForPersona(persona.id)
+                    return true
+                }
+            })
+            view.setOnTouchListener { _, event ->
+                detector.onTouchEvent(event)
+                when (event.actionMasked) {
+                    MotionEvent.ACTION_DOWN -> {
+                        downX = event.rawX
+                        downY = event.rawY
+                        startX = params.x
+                        startY = params.y
+                        moved = false
+                    }
+
+                    MotionEvent.ACTION_MOVE -> {
+                        val dx = event.rawX - downX
+                        val dy = event.rawY - downY
+                        if (abs(dx) > touchSlop || abs(dy) > touchSlop) moved = true
+                        params.x = clampX(startX + dx.toInt(), width)
+                        params.y = clampY(startY + dy.toInt(), height)
+                        runCatching { windowManager.updateViewLayout(view, params) }
+                    }
+                }
+                true
+            }
+            runCatching { windowManager.addView(view, params) }
+            extraPets.add(ExtraPet(persona.id, character, view, params))
+        }
+    }
+
+    private fun clearExtraPets() {
+        extraPets.forEach { pet ->
+            runCatching { windowManager.removeView(pet.view) }
+        }
+        extraPets.clear()
+    }
+
+    private fun openChatForPersona(personaId: String) {
+        val intent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            putExtra(MainActivity.EXTRA_OPEN_CHAT, true)
+            putExtra(MainActivity.EXTRA_OPEN_PERSONA, personaId)
+        }
+        runCatching { startActivity(intent) }
     }
 
     private fun applyScale(value: Float) {
@@ -499,6 +626,11 @@ class PetOverlayService : Service() {
 
         addItem("点击回应：${if (settings.tapResponds) "开" else "关"}") {
             settings.tapResponds = !settings.tapResponds
+            hideMenu()
+        }
+        addItem("点击音效（小黄鸭）：${if (settings.duckSoundEnabled) "开" else "关"}") {
+            settings.duckSoundEnabled = !settings.duckSoundEnabled
+            if (settings.duckSoundEnabled) playQuack()
             hideMenu()
         }
         addItem("动作") {
@@ -818,6 +950,7 @@ class PetOverlayService : Service() {
                     PetEvent.Success -> playClip("success", once = true)
                     PetEvent.Error -> playClip("error", once = true)
                     PetEvent.MotionFrequencyChanged -> scheduleAutonomousAction()
+                    PetEvent.RefreshPets -> refreshExtraPets()
                 }
             }
         }
@@ -827,6 +960,9 @@ class PetOverlayService : Service() {
         scope.launch {
             AppVisibility.foreground.collect { foreground ->
                 petView?.visibility = if (foreground) View.GONE else View.VISIBLE
+                extraPets.forEach { extra ->
+                    extra.view.visibility = if (foreground) View.GONE else View.VISIBLE
+                }
                 if (foreground) {
                     hideBubble()
                 } else if (petView?.drawable == null) {
@@ -935,6 +1071,15 @@ class PetOverlayService : Service() {
         if (drawable is AnimatedImageDrawable) drawable.start()
         if (!AppVisibility.foreground.value) {
             petView?.visibility = View.VISIBLE
+        }
+        extraPets.forEach { extra ->
+            val clip = characters.loadClip(extra.character, name)
+                ?: characters.loadClip(extra.character, extra.character.meta.defaultClip)
+            if (clip != null) {
+                extra.view.setImageDrawable(clip)
+                if (clip is AnimatedImageDrawable) clip.start()
+                if (!AppVisibility.foreground.value) extra.view.visibility = View.VISIBLE
+            }
         }
 
         // Keep the window size tied to the user's scale, not the clip's intrinsic size.
