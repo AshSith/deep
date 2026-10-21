@@ -451,18 +451,12 @@ class PetOverlayService : Service() {
                     if (!moved && !longPressed) {
                         playQuack()
                         playClipOnView(character, view, "poke")
-                        showBubble(
-                            text = pokeLines.random(),
-                            personaId = persona.id,
-                            anchor = params,
-                        )
                     }
                     return true
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    // Conversation is opened from the speech bubble (or long-press menu),
-                    // so a quick double tap on the pet itself does not jump to chat.
+                    if (!moved) openChatForPersona(persona.id)
                     return true
                 }
 
