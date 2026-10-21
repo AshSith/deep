@@ -623,15 +623,19 @@ class PetOverlayService : Service() {
         val scale = settings.menuScale
         fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
-        val panelWidth = sdp(300)
-        val panelHeight = (metrics.heightPixels * 0.72f).toInt()
+        val panelWidth = sdp(280)
+        val names = clips.keys.sorted()
+        val rows = (names.size + 1) / 2
+        val estimatedHeight = sdp(38) + rows * sdp(33) + sdp(10)
+        val maxPanelHeight = (metrics.heightPixels * 0.72f).toInt()
+        val panelHeight = min(estimatedHeight, maxPanelHeight)
 
         val box = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(sdp(2), sdp(4), sdp(2), sdp(6))
         }
         val scroll = ScrollView(this).apply {
-            isFillViewport = false
+            isFillViewport = estimatedHeight > maxPanelHeight
             addView(box)
             background = GradientDrawable().apply {
                 cornerRadius = sdp(18).toFloat()
@@ -648,7 +652,6 @@ class PetOverlayService : Service() {
             setPadding(sdp(14), sdp(10), sdp(14), sdp(2))
         })
 
-        val names = clips.keys.sorted()
         names.chunked(2).forEach { pair ->
             val row = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
