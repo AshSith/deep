@@ -523,7 +523,7 @@ class PetOverlayService : Service() {
             ?: return
         view.setImageDrawable(clip)
         if (clip is AnimatedImageDrawable) clip.start()
-        val duration = character.meta.clips[name]?.durationMs ?: 1200L
+        val duration = (character.meta.clips[name]?.durationMs ?: 1200).toLong()
         handler.postDelayed({
             val idle = characters.loadClip(character, character.meta.defaultClip)
             if (idle != null) {
