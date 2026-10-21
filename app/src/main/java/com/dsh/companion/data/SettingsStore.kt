@@ -49,6 +49,14 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_TAP_RESPONDS, true)
         set(value) = prefs.edit().putBoolean(KEY_TAP_RESPONDS, value).apply()
 
+    var duckSoundEnabled: Boolean
+        get() = prefs.getBoolean(KEY_DUCK_SOUND, true)
+        set(value) = prefs.edit().putBoolean(KEY_DUCK_SOUND, value).apply()
+
+    var extraPetPersonaIds: String
+        get() = prefs.getString(KEY_EXTRA_PETS, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_EXTRA_PETS, value).apply()
+
     var menuScale: Float
         get() = prefs.getFloat(KEY_MENU_SCALE, 1f).coerceIn(0.75f, 1.3f)
         set(value) = prefs.edit().putFloat(KEY_MENU_SCALE, value.coerceIn(0.75f, 1.3f)).apply()
@@ -119,6 +127,8 @@ class SettingsStore(context: Context) {
         const val KEY_BRIGHTNESS = "overlay_brightness"
         const val KEY_FLIPPED = "overlay_flipped"
         const val KEY_TAP_RESPONDS = "tap_responds"
+        const val KEY_DUCK_SOUND = "duck_sound"
+        const val KEY_EXTRA_PETS = "extra_pets"
         const val KEY_MENU_SCALE = "menu_scale"
         const val KEY_CHAT_BG_COLOR = "chat_bg_color"
         const val KEY_THEME_COLOR = "theme_color"
