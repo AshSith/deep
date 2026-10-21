@@ -9,6 +9,10 @@ class SettingsStore(context: Context) {
         get() = prefs.getString(KEY_ACTIVE, null)
         set(value) = prefs.edit().putString(KEY_ACTIVE, value).apply()
 
+    var desktopMainPersonaId: String?
+        get() = prefs.getString(KEY_DESKTOP_MAIN, null)
+        set(value) = prefs.edit().putString(KEY_DESKTOP_MAIN, value).apply()
+
     var overlayEnabled: Boolean
         get() = prefs.getBoolean(KEY_OVERLAY, false)
         set(value) = prefs.edit().putBoolean(KEY_OVERLAY, value).apply()
@@ -117,6 +121,7 @@ class SettingsStore(context: Context) {
 
     private companion object {
         const val KEY_ACTIVE = "active_persona"
+        const val KEY_DESKTOP_MAIN = "desktop_main_persona"
         const val KEY_OVERLAY = "overlay_enabled"
         const val KEY_SCALE = "overlay_scale"
         const val KEY_X = "overlay_x"
