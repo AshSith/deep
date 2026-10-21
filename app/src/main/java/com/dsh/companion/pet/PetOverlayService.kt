@@ -390,7 +390,11 @@ class PetOverlayService : Service() {
         petView = image
         petParams = params
         windowManager.addView(image, params)
-        petView?.visibility = if (AppVisibility.foreground.value) View.GONE else View.VISIBLE
+        petView?.visibility = when {
+            AppVisibility.foreground.value -> View.GONE
+            mainPersonaId() == null -> View.GONE
+            else -> View.VISIBLE
+        }
         applyBrightness()
         applyFlip()
         persistPosition()
@@ -406,10 +410,8 @@ class PetOverlayService : Service() {
         clearExtraPets()
         personas.reload()
         val active = mainPersonaId()
-        val ids = settings.extraPetPersonaIds
-            .split(',')
-            .map { it.trim() }
-            .filter { it.isNotBlank() && it != active }
+        val ids = desktopPersonaIds()
+            .filterNot { it == active }
             .distinct()
             .take(3)
         val area = safeArea()
@@ -451,6 +453,11 @@ class PetOverlayService : Service() {
                     if (!moved && !longPressed) {
                         playQuack()
                         playClipOnView(character, view, "poke")
+                        showBubble(
+                            text = pokeLines.random(),
+                            personaId = persona.id,
+                            anchor = params,
+                        )
                     }
                     return true
                 }
@@ -483,6 +490,7 @@ class PetOverlayService : Service() {
                         params.x = clampX(startX + dx.toInt(), width)
                         params.y = clampY(startY + dy.toInt(), height)
                         runCatching { windowManager.updateViewLayout(view, params) }
+                        if (bubbleAnchor === params) moveBubble()
                     }
 
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
@@ -1043,9 +1051,9 @@ class PetOverlayService : Service() {
     private fun observeAppVisibility() {
         scope.launch {
             AppVisibility.foreground.collect { foreground ->
-                petView?.visibility = if (foreground) View.GONE else View.VISIBLE
+                petView?.visibility = if (foreground || mainPersonaId() == null) View.GONE else View.VISIBLE
                 extraPets.forEach { extra ->
-                    extra.view.visibility = if (foreground) View.GONE else View.VISIBLE
+                    extra.view.visibility = if (foreground || mainPersonaId() == null) View.GONE else View.VISIBLE
                 }
                 if (foreground) {
                     hideBubble()
@@ -1140,12 +1148,28 @@ class PetOverlayService : Service() {
         }
     }
 
-    private fun mainPersonaId(): String? =
-        settings.desktopMainPersonaId ?: settings.activePersonaId
+    private fun desktopPersonaIds(): Set<String> {
+        val stored = settings.desktopPetPersonaIds
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .toSet()
+        if (stored.isNotEmpty()) return stored
+        return (
+            listOfNotNull(settings.desktopMainPersonaId ?: settings.activePersonaId) +
+                settings.extraPetPersonaIds.split(',').filter { it.isNotBlank() }
+        ).toSet()
+    }
+
+    private fun mainPersonaId(): String? {
+        val selected = desktopPersonaIds()
+        val main = settings.desktopMainPersonaId
+        return main?.takeIf { it in selected } ?: selected.firstOrNull()
+    }
 
     private fun playClip(name: String, once: Boolean) {
         personas.reload()
-        val persona = personas.get(mainPersonaId()) ?: personas.first()
+        val persona = personas.get(mainPersonaId()) ?: return
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
         val drawable = characters.loadClip(character, name)
             ?: characters.previewBitmap(character)?.let { BitmapDrawable(resources, it) }
@@ -1199,11 +1223,25 @@ class PetOverlayService : Service() {
         bubbleGroupId = groupId
         hideBubble()
         bubbleAnchor = anchor
+        val bubbleGesture = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
+            override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
+                hideBubble()
+                return true
+            }
+
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                hideBubble()
+                openChat()
+                return true
+            }
+        })
         val view = TextView(this).apply {
             this.text = text.take(220)
             setTextColor(settings.bubbleTextColor)
             textSize = 15f
             maxLines = 5
+            maxWidth = dp(260)
+            minWidth = dp(80)
             setLineSpacing(dp(2).toFloat(), 1f)
             ellipsize = android.text.TextUtils.TruncateAt.END
             setPadding(dp(16), dp(11), dp(16), dp(20))
@@ -1214,47 +1252,13 @@ class PetOverlayService : Service() {
             )
             elevation = dp(8).toFloat()
             setOnTouchListener { _, event ->
-                when (event.actionMasked) {
-                    MotionEvent.ACTION_DOWN -> {
-                        bubbleDownX = event.rawX
-                        bubbleDownY = event.rawY
-                        bubbleStartOffsetX = bubbleOffsetX
-                        bubbleStartOffsetY = bubbleOffsetY
-                        bubbleMoved = false
-                    }
-
-                    MotionEvent.ACTION_MOVE -> {
-                        val dx = event.rawX - bubbleDownX
-                        val dy = event.rawY - bubbleDownY
-                        if (!bubbleMoved && (abs(dx) > touchSlop || abs(dy) > touchSlop)) {
-                            bubbleMoved = true
-                        }
-                        if (bubbleMoved) {
-                            bubbleOffsetX = bubbleStartOffsetX + dx
-                            bubbleOffsetY = bubbleStartOffsetY + dy
-                            moveBubble()
-                        }
-                    }
-
-                    MotionEvent.ACTION_UP -> {
-                        if (!bubbleMoved) {
-                            val now = System.currentTimeMillis()
-                            if (now - lastBubbleTap in 1..450) {
-                                lastBubbleTap = 0L
-                                hideBubble()
-                                openChat()
-                            } else {
-                                lastBubbleTap = now
-                            }
-                        }
-                    }
-                }
+                bubbleGesture.onTouchEvent(event)
                 true
             }
         }
 
         val params = WindowManager.LayoutParams(
-            dp(220),
+            WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.WRAP_CONTENT,
             overlayType(),
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
@@ -1263,8 +1267,8 @@ class PetOverlayService : Service() {
         ).apply {
             gravity = Gravity.TOP or Gravity.START
             val pet = anchor ?: petParams
-            x = (pet?.x ?: 0) + ((pet?.width ?: 0) - dp(220)) / 2
-            y = (pet?.y ?: 0) - dp(80)
+            x = (pet?.x ?: 0) + (pet?.width ?: 0) / 2
+            y = (pet?.y ?: 0) - dp(90)
         }
 
         view.alpha = 0f
@@ -1276,7 +1280,7 @@ class PetOverlayService : Service() {
             view.alpha = 1f
         }
 
-        handler.postDelayed(hideBubbleRunnable, 10_000)
+        handler.postDelayed(hideBubbleRunnable, 7_000)
     }
 
     private fun moveBubble() {
@@ -1289,7 +1293,7 @@ class PetOverlayService : Service() {
         if (x < margin) x = (pet.x + pet.width + margin).toFloat()
         if (x + view.width > area.right - margin) x = (pet.x - view.width - margin).toFloat()
         params.x = x.toInt().coerceIn(margin, max(margin, area.right - view.width - margin))
-        var y = pet.y - view.height + dp(14) + bubbleOffsetY
+        var y = pet.y - view.height - dp(8) + bubbleOffsetY
         if (y < area.top + margin) y = (pet.y + pet.height + margin).toFloat()
         params.y = y.toInt().coerceIn(area.top + margin, max(area.top + margin, area.bottom - view.height - margin))
         runCatching { windowManager.updateViewLayout(view, params) }
