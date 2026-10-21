@@ -84,6 +84,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     )
     val extraPetPersonaIds: StateFlow<Set<String>> = _extraPetPersonaIds.asStateFlow()
 
+    private fun initialDesktopPetIds(): Set<String> {
+        val stored = settings.desktopPetPersonaIds
+            .split(',')
+            .filter { it.isNotBlank() }
+            .toSet()
+        if (stored.isNotEmpty()) return stored
+        return (
+            listOfNotNull(settings.desktopMainPersonaId ?: settings.activePersonaId) +
+                _extraPetPersonaIds.value
+        ).toSet()
+    }
+
+    private val _desktopPetPersonaIds = MutableStateFlow(initialDesktopPetIds())
+    val desktopPetPersonaIds: StateFlow<Set<String>> = _desktopPetPersonaIds.asStateFlow()
+
     private val _userAvatarUri = MutableStateFlow(settings.userAvatarUri)
     val userAvatarUri: StateFlow<String?> = _userAvatarUri.asStateFlow()
 
@@ -187,15 +202,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun setActive(id: String) {
-        if (_activeId.value == id) return
+        if (_activeId.value == id) {
+            ensureDesktopPersona(id)
+            return
+        }
         val persona = personaStore.get(id) ?: return
         sendJob?.cancel()
         sendJob = null
         _streaming.value = false
         _activeId.value = id
         settings.activePersonaId = id
-        settings.desktopMainPersonaId = id
-        PetBus.emit(PetEvent.RefreshPets)
+        ensureDesktopPersona(id)
         loadedFor = id
         val conversation = chatStore.ensure(persona.id, persona.name)
         _activeConversationId.value = conversation.id
@@ -250,10 +267,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _duckSoundEnabled.value = value
     }
 
-    fun setExtraPetPersonas(ids: Set<String>) {
-        settings.extraPetPersonaIds = ids.joinToString(",")
-        _extraPetPersonaIds.value = ids
+    private fun ensureDesktopPersona(id: String) {
+        if (personaStore.get(id) == null) return
+        val next = _desktopPetPersonaIds.value + id
+        settings.desktopPetPersonaIds = next.joinToString(",")
+        settings.desktopMainPersonaId = id
+        settings.extraPetPersonaIds = next.filterNot { it == id }.joinToString(",")
+        _desktopPetPersonaIds.value = next
+        _extraPetPersonaIds.value = next.filterNot { it == id }
         PetBus.emit(PetEvent.RefreshPets)
+    }
+
+    fun setDesktopPetPersonas(ids: Set<String>) {        val valid = ids.filter { personaStore.get(it) != null }.toSet()
+        settings.desktopPetPersonaIds = valid.joinToString(",")
+        val main = settings.desktopMainPersonaId?.takeIf { it in valid } ?: valid.firstOrNull()
+        settings.desktopMainPersonaId = main
+        settings.extraPetPersonaIds = valid.filterNot { it == main }.joinToString(",")
+        _desktopPetPersonaIds.value = valid
+        _extraPetPersonaIds.value = valid.filterNot { it == main }.toSet()
+        PetBus.emit(PetEvent.RefreshPets)
+    }
+
+    fun setExtraPetPersonas(ids: Set<String>) {
+        setDesktopPetPersonas(ids)
     }
 
     fun openConversation(conversationId: String) {
@@ -335,17 +371,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun deletePersona(id: String) {
         personaStore.delete(id)
         chatStore.conversations(id).forEach { chatStore.delete(it.id) }
+        val remainingDesktop = _desktopPetPersonaIds.value - id
+        settings.desktopPetPersonaIds = remainingDesktop.joinToString(",")
+        _desktopPetPersonaIds.value = remainingDesktop
         if (settings.desktopMainPersonaId == id) {
-            val fallback = personaStore.personas.value.firstOrNull()?.id
+            val fallback = remainingDesktop.firstOrNull()
             settings.desktopMainPersonaId = fallback
             if (fallback != null) settings.activePersonaId = fallback
         }
-        if (settings.extraPetPersonaIds.split(',').contains(id)) {
-            settings.extraPetPersonaIds = settings.extraPetPersonaIds
-                .split(',')
-                .filter { it.isNotBlank() && it != id }
-                .joinToString(",")
-        }
+        settings.extraPetPersonaIds = remainingDesktop
+            .filterNot { it == settings.desktopMainPersonaId }
+            .joinToString(",")
+        _extraPetPersonaIds.value = remainingDesktop.filterNot { it == settings.desktopMainPersonaId }.toSet()
         PetBus.emit(PetEvent.RefreshPets)
         if (_activeId.value == id) {
             loadedFor = null
