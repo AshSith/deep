@@ -117,6 +117,13 @@ fun CharacterLibraryScreen(vm: MainViewModel, onBack: () -> Unit) {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
+                            if (character.meta.author.isNotBlank()) {
+                                Text(
+                                    text = "作者：${character.meta.author}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                         if (!character.isBuiltIn) {
                             IconButton(onClick = { deleteTarget = character }) {
