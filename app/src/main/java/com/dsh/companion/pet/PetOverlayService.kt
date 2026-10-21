@@ -921,6 +921,7 @@ class PetOverlayService : Service() {
     }
 
     private fun playClip(name: String, once: Boolean) {
+        personas.reload()
         val persona = personas.get(settings.activePersonaId) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
         val drawable = characters.loadClip(character, name)
