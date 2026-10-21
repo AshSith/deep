@@ -274,11 +274,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         settings.desktopMainPersonaId = id
         settings.extraPetPersonaIds = next.filterNot { it == id }.joinToString(",")
         _desktopPetPersonaIds.value = next
-        _extraPetPersonaIds.value = next.filterNot { it == id }
+        _extraPetPersonaIds.value = next.filterNot { it == id }.toSet()
         PetBus.emit(PetEvent.RefreshPets)
     }
 
-    fun setDesktopPetPersonas(ids: Set<String>) {        val valid = ids.filter { personaStore.get(it) != null }.toSet()
+    fun setDesktopPetPersonas(ids: Set<String>) {
+        val valid = ids.filter { personaStore.get(it) != null }.toSet()
         settings.desktopPetPersonaIds = valid.joinToString(",")
         val main = settings.desktopMainPersonaId?.takeIf { it in valid } ?: valid.firstOrNull()
         settings.desktopMainPersonaId = main
