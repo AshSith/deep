@@ -71,9 +71,11 @@ class GroupViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun openGroup(groupId: String) {
+        personaStore.reload()
         val group = store.groups().firstOrNull { it.id == groupId } ?: return
         _activeGroup.value = group
         _messages.value = store.messages(group.id)
+        _characters.value = characterRepository.list()
     }
 
     fun openGroup(group: GroupChat) {
