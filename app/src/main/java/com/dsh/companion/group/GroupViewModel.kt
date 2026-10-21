@@ -51,6 +51,7 @@ class GroupViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun refreshGroups() {
+        personaStore.reload()
         val valid = personaStore.personas.value.map { it.id }.toSet()
         store.groups().forEach { group ->
             val filtered = group.memberIds.filter { it in valid }
