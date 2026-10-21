@@ -81,9 +81,9 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val duckSound by vm.duckSoundEnabled.collectAsStateWithLifecycle()
     val personas by vm.personas.collectAsStateWithLifecycle()
-    val extraPets by vm.extraPetPersonaIds.collectAsStateWithLifecycle()
+    val desktopPets by vm.desktopPetPersonaIds.collectAsStateWithLifecycle()
     var showPetPicker by remember { mutableStateOf(false) }
-    var selectedExtra by remember(extraPets) { mutableStateOf(extraPets) }
+    var selectedExtra by remember(desktopPets) { mutableStateOf(desktopPets) }
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
     val motionFrequency by vm.desktopMotionFrequency.collectAsStateWithLifecycle()
@@ -294,13 +294,13 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
             item {
                 SettingsCard(title = "多桌宠") {
                     Text(
-                        text = "除了当前角色，还可以在桌面同时放最多 3 只（每个角色一个独立窗口）。",
+                        text = "勾选要出现在桌面的角色，最多 4 只；第一只作为主宠，长按菜单作用在主宠。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Text("已选择 ${extraPets.size} 只", style = MaterialTheme.typography.bodySmall)
+                    Text("已选择 ${desktopPets.size} 只", style = MaterialTheme.typography.bodySmall)
                     TextButton(onClick = {
-                        selectedExtra = extraPets
+                        selectedExtra = desktopPets
                         showPetPicker = true
                     }) { Text("选择桌宠") }
                 }
@@ -472,7 +472,7 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
             confirmButton = {
                 TextButton(onClick = {
                     showPetPicker = false
-                    vm.setExtraPetPersonas(selectedExtra)
+                    vm.setDesktopPetPersonas(selectedExtra)
                 }) { Text("保存") }
             },
             dismissButton = {
