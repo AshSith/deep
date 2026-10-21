@@ -716,7 +716,8 @@ class PetOverlayService : Service() {
         "shy" -> "害羞"
         "dance" -> "跳舞"
         "jump" -> "跳一下"
-        "tail" -> "摇尾巴"
+        "tail" -> "吐泡泡"
+        "tail_wag" -> "摇尾巴"
         "eat_token" -> "吃 token"
         "bow" -> "鞠躬"
         "dragging" -> "被拖拽"
@@ -1148,8 +1149,10 @@ class PetOverlayService : Service() {
     private fun boundsFor(width: Int, height: Int, area: SafeArea = safeArea()): IntArray {
         val minX = area.left - width + visibleX(width)
         val maxX = area.right - visibleX(width)
-        val minY = area.top - height + visibleY(height)
-        val maxY = area.bottom - visibleY(height)
+        // Keep the pet fully inside the safe area vertically: never let it drop
+        // below the navigation bar/gesture area again.
+        val minY = area.top + dp(4)
+        val maxY = (area.bottom - height - dp(28)).coerceAtLeast(minY)
         return intArrayOf(minX, maxX, minY, maxY)
     }
 
