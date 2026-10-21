@@ -33,6 +33,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,6 +55,10 @@ fun GroupListScreen(
     val groups by vm.groups.collectAsStateWithLifecycle()
     val personas by vm.personas.collectAsStateWithLifecycle()
     val characters by vm.characters.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) {
+        vm.refreshGroups()
+    }
 
     var showCreate by remember { mutableStateOf(false) }
     var deleteTarget by remember { mutableStateOf<GroupChat?>(null) }
