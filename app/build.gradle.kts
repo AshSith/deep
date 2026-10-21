@@ -22,8 +22,8 @@ android {
         applicationId = "com.dsh.companion"
         minSdk = 28
         targetSdk = 34
-        versionCode = 26
-        versionName = "0.9.7"
+        versionCode = 27
+        versionName = "0.9.8"
     }
 
     buildTypes {
