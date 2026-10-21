@@ -14,8 +14,10 @@ class GroupChatEngine(context: Context) {
     private val personaStore = PersonaStore(context)
     private val client = ChatClient()
 
-    fun members(group: GroupChat): List<Persona> =
-        group.memberIds.mapNotNull { personaStore.get(it) }
+    fun members(group: GroupChat): List<Persona> {
+        personaStore.reload()
+        return group.memberIds.mapNotNull { personaStore.get(it) }
+    }
 
     fun responder(group: GroupChat, text: String): Persona? {
         val members = members(group).filter { it.apiKey.isNotBlank() }
