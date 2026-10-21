@@ -5,8 +5,8 @@
   "author": "MerZlin / dsh-pet-indesktop",
   "license": "MIT; see NOTICE.md",
   "fps": 8,
-  "frameWidth": 200,
-  "frameHeight": 225,
+  "frameWidth": 300,
+  "frameHeight": 338,
   "defaultClip": "idle",
   "states": {
     "idle": "idle",
