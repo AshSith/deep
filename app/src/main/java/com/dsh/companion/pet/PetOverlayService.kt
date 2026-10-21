@@ -76,12 +76,15 @@ class PetOverlayService : Service() {
     private var petParams: WindowManager.LayoutParams? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
 
-    private data class ExtraPet(
+    private class ExtraPet(
         val personaId: String,
         val character: Character,
         val view: ImageView,
         val params: WindowManager.LayoutParams,
-    )
+    ) {
+        var lastClip: String? = null
+        var actionRunnable: Runnable? = null
+    }
     private val extraPets = mutableListOf<ExtraPet>()
 
     private val handler = Handler(Looper.getMainLooper())
@@ -175,7 +178,7 @@ class PetOverlayService : Service() {
             if (!AppVisibility.foreground.value) {
                 showBubble(
                     "我在这儿。点一下戳我，双击打开聊天。",
-                    personaId = settings.activePersonaId ?: personas.first()?.id,
+                    personaId = mainPersonaId() ?: personas.first()?.id,
                 )
             }
         }, 1600)
@@ -291,7 +294,7 @@ class PetOverlayService : Service() {
                     playClip("poke", once = true)
                     showBubble(
                         pokeLines.random(),
-                        personaId = settings.activePersonaId ?: personas.first()?.id,
+                        personaId = mainPersonaId() ?: personas.first()?.id,
                     )
                 }
                 return true
@@ -397,7 +400,7 @@ class PetOverlayService : Service() {
     private fun refreshExtraPets() {
         clearExtraPets()
         personas.reload()
-        val active = settings.activePersonaId
+        val active = mainPersonaId()
         val ids = settings.extraPetPersonaIds
             .split(',')
             .map { it.trim() }
@@ -439,9 +442,20 @@ class PetOverlayService : Service() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    playQuack()
-                    openChatForPersona(persona.id)
+                    if (!moved) {
+                        playQuack()
+                        playClipOnView(character, view, "poke")
+                    }
                     return true
+                }
+
+                override fun onDoubleTap(e: MotionEvent): Boolean {
+                    if (!moved) openChatForPersona(persona.id)
+                    return true
+                }
+
+                override fun onLongPress(e: MotionEvent) {
+                    if (!moved) promoteExtraToMain(persona.id)
                 }
             })
             view.setOnTouchListener { _, event ->
@@ -469,13 +483,62 @@ class PetOverlayService : Service() {
             runCatching { windowManager.addView(view, params) }
             extraPets.add(ExtraPet(persona.id, character, view, params))
         }
+        extraPets.forEach { scheduleExtraAction(it) }
+    }
+
+    private fun scheduleExtraAction(extra: ExtraPet) {
+        extra.actionRunnable?.let(handler::removeCallbacks)
+        val runnable = object : Runnable {
+            override fun run() {
+                if (!AppVisibility.foreground.value) {
+                    val excluded = setOf("idle", "thinking", "error", "dragging", "dragging_release", "success")
+                    val pool = extra.character.meta.clips.keys
+                        .filterNot { it in excluded }
+                        .filterNot { it == extra.lastClip }
+                    val clip = pool.randomOrNull()
+                        ?: extra.character.meta.clips.keys.filterNot { it in excluded }.randomOrNull()
+                    if (clip != null) {
+                        extra.lastClip = clip
+                        playClipOnView(extra.character, extra.view, clip)
+                    }
+                }
+                handler.postDelayed(this, 15_000L + Random.nextLong(20_000L))
+            }
+        }
+        extra.actionRunnable = runnable
+        handler.postDelayed(runnable, 8_000L + Random.nextLong(15_000L))
     }
 
     private fun clearExtraPets() {
         extraPets.forEach { pet ->
+            pet.actionRunnable?.let(handler::removeCallbacks)
             runCatching { windowManager.removeView(pet.view) }
         }
         extraPets.clear()
+    }
+
+    private fun playClipOnView(character: Character, view: ImageView, name: String) {
+        val clip = characters.loadClip(character, name)
+            ?: characters.loadClip(character, character.meta.defaultClip)
+            ?: return
+        view.setImageDrawable(clip)
+        if (clip is AnimatedImageDrawable) clip.start()
+        val duration = character.meta.clips[name]?.durationMs ?: 1200L
+        handler.postDelayed({
+            val idle = characters.loadClip(character, character.meta.defaultClip)
+            if (idle != null) {
+                view.setImageDrawable(idle)
+                if (idle is AnimatedImageDrawable) idle.start()
+            }
+        }, duration + 60L)
+    }
+
+    private fun promoteExtraToMain(personaId: String) {
+        settings.desktopMainPersonaId = personaId
+        personas.reload()
+        refreshExtraPets()
+        playClip("idle", once = false)
+        showMenu()
     }
 
     private fun openChatForPersona(personaId: String) {
@@ -747,7 +810,7 @@ class PetOverlayService : Service() {
 
     private fun showActionList() {
         hideMenu()
-        val persona = personas.get(settings.activePersonaId) ?: personas.first()
+        val persona = personas.get(mainPersonaId()) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
         val clips = character.meta.clips
         if (clips.isEmpty()) return
@@ -997,7 +1060,7 @@ class PetOverlayService : Service() {
     }
 
     private fun autonomousClip(): String? {
-        val persona = personas.get(settings.activePersonaId) ?: personas.first()
+        val persona = personas.get(mainPersonaId()) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: return null
         val excluded = setOf(
             "idle", "thinking", "error", "dragging", "dragging_release", "success",
@@ -1056,9 +1119,12 @@ class PetOverlayService : Service() {
         }
     }
 
+    private fun mainPersonaId(): String? =
+        settings.desktopMainPersonaId ?: settings.activePersonaId
+
     private fun playClip(name: String, once: Boolean) {
         personas.reload()
-        val persona = personas.get(settings.activePersonaId) ?: personas.first()
+        val persona = personas.get(mainPersonaId()) ?: personas.first()
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
         val drawable = characters.loadClip(character, name)
             ?: characters.previewBitmap(character)?.let { BitmapDrawable(resources, it) }
@@ -1071,15 +1137,6 @@ class PetOverlayService : Service() {
         if (drawable is AnimatedImageDrawable) drawable.start()
         if (!AppVisibility.foreground.value) {
             petView?.visibility = View.VISIBLE
-        }
-        extraPets.forEach { extra ->
-            val clip = characters.loadClip(extra.character, name)
-                ?: characters.loadClip(extra.character, extra.character.meta.defaultClip)
-            if (clip != null) {
-                extra.view.setImageDrawable(clip)
-                if (clip is AnimatedImageDrawable) clip.start()
-                if (!AppVisibility.foreground.value) extra.view.visibility = View.VISIBLE
-            }
         }
 
         // Keep the window size tied to the user's scale, not the clip's intrinsic size.
@@ -1182,12 +1239,19 @@ class PetOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
+            val pet = petParams
+            x = (pet?.x ?: 0) + ((pet?.width ?: 0) - dp(220)) / 2
+            y = (pet?.y ?: 0) - dp(80)
         }
 
+        view.alpha = 0f
         bubbleView = view
         bubbleParams = params
         runCatching { windowManager.addView(view, params) }
-        view.post { moveBubble() }
+        view.post {
+            moveBubble()
+            view.alpha = 1f
+        }
 
         handler.postDelayed(hideBubbleRunnable, 10_000)
     }
