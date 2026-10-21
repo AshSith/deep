@@ -75,6 +75,7 @@ class PetOverlayService : Service() {
     private var bubbleView: TextView? = null
     private var petParams: WindowManager.LayoutParams? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    private var bubbleAnchor: WindowManager.LayoutParams? = null
 
     private class ExtraPet(
         val personaId: String,
@@ -445,6 +446,11 @@ class PetOverlayService : Service() {
                     if (!moved) {
                         playQuack()
                         playClipOnView(character, view, "poke")
+                        showBubble(
+                            text = pokeLines.random(),
+                            personaId = persona.id,
+                            anchor = params,
+                        )
                     }
                     return true
                 }
@@ -518,12 +524,19 @@ class PetOverlayService : Service() {
     }
 
     private fun playClipOnView(character: Character, view: ImageView, name: String) {
-        val clip = characters.loadClip(character, name)
+        val resolved = if (character.meta.clips.containsKey(name)) {
+            name
+        } else {
+            character.meta.clips.keys
+                .filterNot { it in setOf("idle", "thinking", "error", "dragging", "dragging_release") }
+                .randomOrNull() ?: name
+        }
+        val clip = characters.loadClip(character, resolved)
             ?: characters.loadClip(character, character.meta.defaultClip)
             ?: return
         view.setImageDrawable(clip)
         if (clip is AnimatedImageDrawable) clip.start()
-        val duration = (character.meta.clips[name]?.durationMs ?: 1200).toLong()
+        val duration = (character.meta.clips[resolved]?.durationMs ?: 1200).toLong()
         handler.postDelayed({
             val idle = characters.loadClip(character, character.meta.defaultClip)
             if (idle != null) {
@@ -1170,12 +1183,14 @@ class PetOverlayService : Service() {
         conversationId: String? = null,
         personaId: String? = null,
         groupId: String? = null,
+        anchor: WindowManager.LayoutParams? = null,
     ) {
         if (AppVisibility.foreground.value) return
         bubbleConversationId = conversationId
         bubblePersonaId = personaId
         bubbleGroupId = groupId
         hideBubble()
+        bubbleAnchor = anchor
         val view = TextView(this).apply {
             this.text = text.take(220)
             setTextColor(settings.bubbleTextColor)
@@ -1239,7 +1254,7 @@ class PetOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val pet = petParams
+            val pet = anchor ?: petParams
             x = (pet?.x ?: 0) + ((pet?.width ?: 0) - dp(220)) / 2
             y = (pet?.y ?: 0) - dp(80)
         }
@@ -1259,7 +1274,7 @@ class PetOverlayService : Service() {
     private fun moveBubble() {
         val view = bubbleView ?: return
         val params = bubbleParams ?: return
-        val pet = petParams ?: return
+        val pet = bubbleAnchor ?: petParams ?: return
         val metrics = resources.displayMetrics
         params.x = (pet.x + (pet.width - view.width) / 2 + bubbleOffsetX)
             .toInt()
@@ -1275,6 +1290,7 @@ class PetOverlayService : Service() {
         val view = bubbleView ?: return
         bubbleView = null
         bubbleParams = null
+        bubbleAnchor = null
         runCatching { windowManager.removeView(view) }
     }
 
