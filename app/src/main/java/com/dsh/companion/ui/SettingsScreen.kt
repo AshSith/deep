@@ -17,9 +17,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -36,6 +38,8 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -75,6 +79,11 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
     val bubbleColor by vm.bubbleColor.collectAsStateWithLifecycle()
     val bubbleTextColor by vm.bubbleTextColor.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
+    val duckSound by vm.duckSoundEnabled.collectAsStateWithLifecycle()
+    val personas by vm.personas.collectAsStateWithLifecycle()
+    val extraPets by vm.extraPetPersonaIds.collectAsStateWithLifecycle()
+    var showPetPicker by remember { mutableStateOf(false) }
+    var selectedExtra by remember(extraPets) { mutableStateOf(extraPets) }
     val voices by vm.voices.collectAsStateWithLifecycle()
     val voiceMessage by vm.voiceMessage.collectAsStateWithLifecycle()
     val motionFrequency by vm.desktopMotionFrequency.collectAsStateWithLifecycle()
@@ -261,7 +270,39 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("点击音效（小黄鸭）", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "戳桌宠时播放一声鸭叫",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = duckSound,
+                                onCheckedChange = { vm.setDuckSoundEnabled(it) },
+                            )
+                        }
                     }
+                }
+            }
+
+            item {
+                SettingsCard(title = "多桌宠") {
+                    Text(
+                        text = "除了当前角色，还可以在桌面同时放最多 3 只（每个角色一个独立窗口）。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text("已选择 ${extraPets.size} 只", style = MaterialTheme.typography.bodySmall)
+                    TextButton(onClick = {
+                        selectedExtra = extraPets
+                        showPetPicker = true
+                    }) { Text("选择桌宠") }
                 }
             }
 
@@ -384,13 +425,60 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = "内置「大肥鱼」动画素材来自 PC2005-cloud/dsh-pet，MIT 许可；角色名与 DeepSeek 官方无关。",
+                        text = "内置「神神」动画素材来自 MerZlin/dsh-pet-indesktop，MIT 许可；角色名与 DeepSeek 官方无关。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
         }
+    }
+
+    if (showPetPicker) {
+        AlertDialog(
+            onDismissRequest = { showPetPicker = false },
+            title = { Text("选择桌面桌宠") },
+            text = {
+                LazyColumn(Modifier.heightIn(max = 320.dp)) {
+                    items(personas, key = { it.id }) { persona ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    selectedExtra = if (persona.id in selectedExtra) {
+                                        selectedExtra - persona.id
+                                    } else {
+                                        selectedExtra + persona.id
+                                    }
+                                }
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = persona.id in selectedExtra,
+                                onCheckedChange = {
+                                    selectedExtra = if (persona.id in selectedExtra) {
+                                        selectedExtra - persona.id
+                                    } else {
+                                        selectedExtra + persona.id
+                                    }
+                                },
+                            )
+                            Text("${persona.name} · ${persona.characterId}")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPetPicker = false
+                    vm.setExtraPetPersonas(selectedExtra)
+                }) { Text("保存") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPetPicker = false }) { Text("取消") }
+            },
+        )
     }
 }
 
