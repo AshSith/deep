@@ -155,6 +155,10 @@ class PetOverlayService : Service() {
         settings = SettingsStore(this)
         personas = PersonaStore(this)
         characters = CharacterRepository(this)
+        personas.reload()
+        if (settings.desktopMainPersonaId.isNullOrBlank()) {
+            settings.desktopMainPersonaId = settings.activePersonaId ?: personas.first()?.id
+        }
         groupStore = GroupStore(this)
         groupEngine = GroupChatEngine(this)
         soundPool = SoundPool.Builder()
@@ -439,11 +443,12 @@ class PetOverlayService : Service() {
             var startX = 0
             var startY = 0
             var moved = false
+            var longPressed = false
             val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
                 override fun onSingleTapConfirmed(e: MotionEvent): Boolean {
-                    if (!moved) {
+                    if (!moved && !longPressed) {
                         playQuack()
                         playClipOnView(character, view, "poke")
                         showBubble(
@@ -456,12 +461,13 @@ class PetOverlayService : Service() {
                 }
 
                 override fun onDoubleTap(e: MotionEvent): Boolean {
-                    if (!moved) openChatForPersona(persona.id)
+                    // Conversation is opened from the speech bubble (or long-press menu),
+                    // so a quick double tap on the pet itself does not jump to chat.
                     return true
                 }
 
                 override fun onLongPress(e: MotionEvent) {
-                    if (!moved) promoteExtraToMain(persona.id)
+                    if (!moved) longPressed = true
                 }
             })
             view.setOnTouchListener { _, event ->
@@ -473,6 +479,7 @@ class PetOverlayService : Service() {
                         startX = params.x
                         startY = params.y
                         moved = false
+                        longPressed = false
                     }
 
                     MotionEvent.ACTION_MOVE -> {
@@ -482,6 +489,13 @@ class PetOverlayService : Service() {
                         params.x = clampX(startX + dx.toInt(), width)
                         params.y = clampY(startY + dy.toInt(), height)
                         runCatching { windowManager.updateViewLayout(view, params) }
+                    }
+
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        if (longPressed && !moved) {
+                            longPressed = false
+                            promoteExtraToMain(persona.id)
+                        }
                     }
                 }
                 true
@@ -1275,13 +1289,15 @@ class PetOverlayService : Service() {
         val view = bubbleView ?: return
         val params = bubbleParams ?: return
         val pet = bubbleAnchor ?: petParams ?: return
-        val metrics = resources.displayMetrics
-        params.x = (pet.x + (pet.width - view.width) / 2 + bubbleOffsetX)
-            .toInt()
-            .coerceIn(0, max(0, metrics.widthPixels - view.width))
-        params.y = (pet.y - view.height + dp(14) + bubbleOffsetY)
-            .toInt()
-            .coerceAtLeast(0)
+        val area = safeArea()
+        val margin = dp(8)
+        var x = pet.x + (pet.width - view.width) / 2 + bubbleOffsetX
+        if (x < margin) x = (pet.x + pet.width + margin).toFloat()
+        if (x + view.width > area.right - margin) x = (pet.x - view.width - margin).toFloat()
+        params.x = x.toInt().coerceIn(margin, max(margin, area.right - view.width - margin))
+        var y = pet.y - view.height + dp(14) + bubbleOffsetY
+        if (y < area.top + margin) y = (pet.y + pet.height + margin).toFloat()
+        params.y = y.toInt().coerceIn(area.top + margin, max(area.top + margin, area.bottom - view.height - margin))
         runCatching { windowManager.updateViewLayout(view, params) }
     }
 
