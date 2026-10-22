@@ -48,18 +48,33 @@ class GroupChatEngine(context: Context) {
     suspend fun reply(group: GroupChat, persona: Persona): ChatMessage {
         val members = members(group)
         val names = members.joinToString("、") { it.name }
+        val others = members.filter { it.id != persona.id }.joinToString("、") { it.name }
         val system = buildString {
+            append("【身份锁定】你的固定身份是「")
+            append(persona.name)
+            append("」，不是任何其他成员，也不要扮演其他成员。\n\n")
             append(persona.systemPrompt)
-            append("\n\n【群聊】群名：")
+            append("\n\n【群聊模式｜必须遵守】群名：")
             append(group.title)
             append("。成员：")
             append(names)
-            append("。用户是群主。只代表你自己（")
+            append("。用户是群主。")
+            append("你是「")
             append(persona.name)
-            append("）说话，1-2 句，口语；不要替别人说话，不要复述别人的话。")
-            append("回复不要以「名字：」开头，不要写任何人的名字前缀，只写你要说的内容。")
+            append("」，身份固定。历史消息里的「名字：」只表示谁在说话，不代表你的设定。")
+            if (others.isNotBlank()) {
+                append("不要模仿或沿用")
+                append(others)
+                append("的自称、口癖、称呼和关系设定；不要替他们说话。")
+            }
+            append("只输出「")
+            append(persona.name)
+            append("」这一句回复，1-2 句，口语；不要写任何名字前缀。")
         }
-        val history = historyFor(group)
+        val history = historyFor(group, 30, persona.id) + ChatMessage(
+            role = ChatMessage.ROLE_USER,
+            content = "【群聊提示】现在只由「${persona.name}」回复，请始终以${persona.name}的身份说话。",
+        )
         val builder = StringBuilder()
         client.stream(persona.copy(systemPrompt = system), history).collect { builder.append(it) }
         val answer = cleanReply(builder.toString().trim(), members)
@@ -77,16 +92,30 @@ class GroupChatEngine(context: Context) {
         if (members.isEmpty()) return null
         val persona = members.random()
         val names = members.joinToString("、") { it.name }
+        val others = members.filter { it.id != persona.id }.joinToString("、") { it.name }
         val system = buildString {
+            append("【身份锁定】你的固定身份是「")
+            append(persona.name)
+            append("」，不是任何其他成员。\n\n")
             append(persona.systemPrompt)
-            append("\n\n【群聊】群名：")
+            append("\n\n【群聊模式｜必须遵守】群名：")
             append(group.title)
             append("。成员：")
             append(names)
-            append("。用户暂时不在。你可以主动说一句，1-2 句，口语，不要问用户问题，不要连续刷屏，不要替别人说话。")
-            append("回复不要以「名字：」开头，不要写任何人的名字前缀。")
+            append("。用户暂时不在。你是「")
+            append(persona.name)
+            append("」，身份固定。")
+            if (others.isNotBlank()) {
+                append("不要模仿或沿用")
+                append(others)
+                append("的自称、口癖、称呼和关系设定；不要替他们说话。")
+            }
+            append("主动说一句，1-2 句，口语；不要问用户问题，不要连续刷屏；不要写任何名字前缀。")
         }
-        val history = historyFor(group, 20)
+        val history = historyFor(group, 20, persona.id) + ChatMessage(
+            role = ChatMessage.ROLE_USER,
+            content = "【群聊提示】现在只由「${persona.name}」主动说一句，请始终以${persona.name}的身份说话。",
+        )
         val builder = StringBuilder()
         client.stream(persona.copy(systemPrompt = system), history).collect { builder.append(it) }
         val answer = cleanReply(builder.toString().trim(), members)
@@ -113,7 +142,11 @@ class GroupChatEngine(context: Context) {
         return text.trim()
     }
 
-    private fun historyFor(group: GroupChat, limit: Int = 30): List<ChatMessage> =
+    private fun historyFor(
+        group: GroupChat,
+        limit: Int = 30,
+        selfPersonaId: String? = null,
+    ): List<ChatMessage> =
         groupStore.messages(group.id)
             .takeLast(limit)
             .mapNotNull { message ->
@@ -128,9 +161,19 @@ class GroupChatEngine(context: Context) {
 
                     ChatMessage.ROLE_ASSISTANT -> if (message.error) {
                         null
-                    } else {
+                    } else if (selfPersonaId != null && message.personaId == selfPersonaId) {
                         ChatMessage(
                             role = ChatMessage.ROLE_ASSISTANT,
+                            content = message.content,
+                            attachmentUri = message.attachmentUri,
+                            attachmentType = message.attachmentType,
+                            attachmentName = message.attachmentName,
+                        )
+                    } else {
+                        // Other members are context, not this model's own past output.
+                        // Keeping them as assistant turns makes the model continue their voice.
+                        ChatMessage(
+                            role = ChatMessage.ROLE_USER,
                             content = "${message.senderName ?: "成员"}：${message.content}",
                             attachmentUri = message.attachmentUri,
                             attachmentType = message.attachmentType,
