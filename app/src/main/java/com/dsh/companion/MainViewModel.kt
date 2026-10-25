@@ -434,6 +434,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 withContext(Dispatchers.IO) { characterRepository.importZip(uri) }
             }.onSuccess { character ->
                 refreshCharacters()
+                PetBus.emit(PetEvent.RefreshPets)
+                PetBus.emit(PetEvent.Clip("idle", once = false))
                 onResult("已导入「${character.name}」")
             }.onFailure {
                 onResult("导入失败：${it.message ?: "未知错误"}")
