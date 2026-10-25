@@ -443,7 +443,7 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Text(
-                        text = "内置「神神」动画素材来自 MerZlin/dsh-pet-indesktop，MIT 许可；角色名与 DeepSeek 官方无关。",
+                        text = "神神动画素材来自 MerZlin/dsh-pet-indesktop，MIT 许可；作为独立角色包导入使用，App 不再内置角色。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
