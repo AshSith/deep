@@ -87,6 +87,8 @@ class PetOverlayService : Service() {
         var actionRunnable: Runnable? = null
         var flingRunnable: Runnable? = null
         var dragging: Boolean = false
+        var scale: Float = 1f
+        var brightness: Float = 1f
     }
     private val extraPets = mutableListOf<ExtraPet>()
 
@@ -374,7 +376,6 @@ class PetOverlayService : Service() {
                         if (dragging) {
                             params.x = clampX(startX + dx.toInt(), params.width)
                             params.y = clampY(startY + dy.toInt(), params.height)
-                            pushApart(params, null)
                             runCatching { windowManager.updateViewLayout(image, params) }
                             moveBubble()
                         }
@@ -462,7 +463,13 @@ class PetOverlayService : Service() {
             var moved = false
             var longPressed = false
             var tracker: VelocityTracker? = null
-            val extra = ExtraPet(persona.id, character, view, params)
+            val extra = ExtraPet(persona.id, character, view, params).apply {
+                scale = settings.overlayScale
+                brightness = settings.overlayBrightness
+            }
+            view.colorFilter = ColorMatrixColorFilter(ColorMatrix().apply {
+                setScale(extra.brightness, extra.brightness, extra.brightness, 1f)
+            })
             val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
@@ -516,7 +523,6 @@ class PetOverlayService : Service() {
                         if (extra.dragging) {
                             params.x = clampX(startX + dx.toInt(), width)
                             params.y = clampY(startY + dy.toInt(), height)
-                            pushApart(params, extra)
                             runCatching { windowManager.updateViewLayout(view, params) }
                             if (bubbleAnchor === params) moveBubble()
                         }
@@ -531,9 +537,6 @@ class PetOverlayService : Service() {
                             extra.dragging = false
                             if (abs(vx) > 250f || abs(vy) > 250f) {
                                 flingExtra(extra, vx, vy)
-                            } else {
-                                pushApart(params, extra)
-                                runCatching { windowManager.updateViewLayout(view, params) }
                             }
                         } else if (longPressed && !moved) {
                             longPressed = false
@@ -548,8 +551,6 @@ class PetOverlayService : Service() {
             }
             runCatching { windowManager.addView(view, params) }
             extraPets.add(extra)
-            pushApart(params, extra)
-            runCatching { windowManager.updateViewLayout(view, params) }
         }
         extraPets.forEach { scheduleExtraAction(it) }
     }
@@ -641,6 +642,29 @@ class PetOverlayService : Service() {
         params.y = clampY(params.y, nextHeight)
         runCatching { windowManager.updateViewLayout(image, params) }
         moveBubble()
+    }
+
+    private fun applyExtraScale(extra: ExtraPet, value: Float) {
+        val scale = value.coerceIn(0.4f, 3f)
+        extra.scale = scale
+        val nextWidth = (dp(160) * scale).toInt().coerceAtLeast(dp(40))
+        val nextHeight = (dp(180) * scale).toInt().coerceAtLeast(dp(45))
+        val params = extra.params
+        val centerX = params.x + params.width / 2
+        val centerY = params.y + params.height / 2
+        params.width = nextWidth
+        params.height = nextHeight
+        params.x = clampX(centerX - nextWidth / 2, nextWidth)
+        params.y = clampY(centerY - nextHeight / 2, nextHeight)
+        runCatching { windowManager.updateViewLayout(extra.view, params) }
+        if (bubbleAnchor === params) moveBubble()
+    }
+
+    private fun applyExtraBrightness(extra: ExtraPet, value: Float) {
+        val brightness = value.coerceIn(0.5f, 1.5f)
+        extra.brightness = brightness
+        val matrix = ColorMatrix().apply { setScale(brightness, brightness, brightness, 1f) }
+        extra.view.colorFilter = ColorMatrixColorFilter(matrix)
     }
 
     private fun applyBrightness() {
@@ -790,8 +814,9 @@ class PetOverlayService : Service() {
             hideMenu()
         }
 
+        val currentScale = menuExtra?.scale ?: settings.overlayScale
         val sizeLabel = TextView(this).apply {
-            text = "桌宠大小：${(settings.overlayScale * 100).toInt()}%"
+            text = "桌宠大小：${(currentScale * 100).toInt()}%"
             textSize = 15f * scale
             setTextColor(0xFF8A6A24.toInt())
             setPadding(sdp(16), sdp(9), sdp(16), 0)
@@ -799,13 +824,18 @@ class PetOverlayService : Service() {
         box.addView(sizeLabel)
         box.addView(SeekBar(this).apply {
             max = 260
-            progress = ((settings.overlayScale * 100).toInt() - 40).coerceIn(0, 260)
+            progress = ((currentScale * 100).toInt() - 40).coerceIn(0, 260)
             setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val percent = progress + 40
                     sizeLabel.text = "桌宠大小：$percent%"
-                    applyScale(percent / 100f)
+                    val extra = menuExtra
+                    if (extra != null) {
+                        applyExtraScale(extra, percent / 100f)
+                    } else {
+                        applyScale(percent / 100f)
+                    }
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
@@ -813,8 +843,9 @@ class PetOverlayService : Service() {
             })
         })
 
+        val currentBrightness = menuExtra?.brightness ?: settings.overlayBrightness
         val brightnessLabel = TextView(this).apply {
-            text = "亮度：${(settings.overlayBrightness * 100).toInt()}%"
+            text = "亮度：${(currentBrightness * 100).toInt()}%"
             textSize = 15f * scale
             setTextColor(0xFF8A6A24.toInt())
             setPadding(sdp(16), sdp(9), sdp(16), 0)
@@ -822,14 +853,19 @@ class PetOverlayService : Service() {
         box.addView(brightnessLabel)
         box.addView(SeekBar(this).apply {
             max = 100
-            progress = ((settings.overlayBrightness * 100).toInt() - 50).coerceIn(0, 100)
+            progress = ((currentBrightness * 100).toInt() - 50).coerceIn(0, 100)
             setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     val percent = progress + 50
                     brightnessLabel.text = "亮度：$percent%"
-                    settings.overlayBrightness = percent / 100f
-                    applyBrightness()
+                    val extra = menuExtra
+                    if (extra != null) {
+                        applyExtraBrightness(extra, percent / 100f)
+                    } else {
+                        settings.overlayBrightness = percent / 100f
+                        applyBrightness()
+                    }
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
@@ -1054,36 +1090,15 @@ class PetOverlayService : Service() {
         else -> name
     }
 
-    private fun pushApart(params: WindowManager.LayoutParams, ignore: ExtraPet?): Boolean {
-        var hit = false
+    private fun overlapsAny(params: WindowManager.LayoutParams, ignore: ExtraPet?): Boolean {
         val others = mutableListOf<WindowManager.LayoutParams>()
         petParams?.takeIf { it !== params }?.let(others::add)
         extraPets.filter { it !== ignore && it.params !== params }.forEach { others.add(it.params) }
-        for (other in others) {
+        return others.any { other ->
             val overlapX = min(params.x + params.width, other.x + other.width) - max(params.x, other.x)
             val overlapY = min(params.y + params.height, other.y + other.height) - max(params.y, other.y)
-            if (overlapX > 0 && overlapY > 0) {
-                hit = true
-                if (overlapX < overlapY) {
-                    val push = overlapX + 1
-                    if (params.x + params.width / 2 < other.x + other.width / 2) {
-                        params.x -= push
-                    } else {
-                        params.x += push
-                    }
-                } else {
-                    val push = overlapY + 1
-                    if (params.y + params.height / 2 < other.y + other.height / 2) {
-                        params.y -= push
-                    } else {
-                        params.y += push
-                    }
-                }
-                params.x = clampX(params.x, params.width)
-                params.y = clampY(params.y, params.height)
-            }
+            overlapX > 0 && overlapY > 0
         }
-        return hit
     }
 
     private fun flingExtra(extra: ExtraPet, vx0: Float, vy0: Float) {
@@ -1128,9 +1143,7 @@ class PetOverlayService : Service() {
                 }
                 params.x = x.toInt()
                 params.y = y.toInt()
-                if (pushApart(params, extra)) {
-                    x = params.x.toFloat()
-                    y = params.y.toFloat()
+                if (overlapsAny(params, extra)) {
                     vx = -vx * bounce
                     vy = -vy * bounce
                 }
@@ -1194,9 +1207,7 @@ class PetOverlayService : Service() {
 
                 params.x = x.toInt()
                 params.y = y.toInt()
-                if (pushApart(params, null)) {
-                    x = params.x.toFloat()
-                    y = params.y.toFloat()
+                if (overlapsAny(params, null)) {
                     vx = -vx * bounce
                     vy = -vy * bounce
                 }
