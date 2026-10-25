@@ -13,6 +13,11 @@ import shutil
 import zipfile
 from PIL import Image
 
+try:
+    import ftfy
+except Exception:
+    ftfy = None
+
 W, H = 480, 540
 QUALITY = 82
 
@@ -41,23 +46,37 @@ def walk_items(node):
             yield from walk_items(value)
 
 
-def resolve(asset_dir: pathlib.Path, item: dict) -> pathlib.Path:
-    candidates = []
-    if item.get("playbackFile"):
-        candidates.append(item["playbackFile"])
-    if item.get("file"):
-        candidates.append(item["file"])
-    for raw in candidates:
-        path = asset_dir / str(raw).replace("\\", "/")
-        if path.is_file():
+def fix_name(value: str) -> str:
+    if ftfy is None:
+        return value
+    try:
+        return ftfy.fix_text(value)
+    except Exception:
+        return value
+
+
+def find_asset(asset_dir: pathlib.Path, item: dict) -> pathlib.Path:
+    wanted = []
+    for raw in (item.get("playbackFile"), item.get("file")):
+        if not raw:
+            continue
+        rel = str(raw).replace("\\", "/")
+        wanted.append(rel)
+        wanted.append(fix_name(rel))
+        wanted.append(pathlib.Path(rel).name)
+        wanted.append(fix_name(pathlib.Path(rel).name))
+    all_webp = list(asset_dir.rglob("*.webp"))
+    for path in all_webp:
+        rel = str(path.relative_to(asset_dir))
+        variants = {rel, path.name, fix_name(rel), fix_name(path.name)}
+        if any(v in wanted for v in variants):
             return path
-        alt = path.with_suffix(".webp")
-        if alt.is_file():
-            return alt
-        matches = list(asset_dir.rglob(path.name))
-        if matches:
-            return matches[0]
-    raise FileNotFoundError(f"asset not found for {item.get('id')}: {candidates}")
+    # Last resort: compare basenames after normalisation.
+    for path in all_webp:
+        for want in wanted:
+            if fix_name(path.name) == fix_name(want):
+                return path
+    raise FileNotFoundError(f"asset not found for {item.get('id')}: {wanted}")
 
 
 def frame_rgba(image: Image.Image) -> Image.Image:
@@ -116,7 +135,7 @@ def main():
         if not key or key in seen:
             continue
         try:
-            src = resolve(asset_dir, item)
+            src = find_asset(asset_dir, item)
         except FileNotFoundError as error:
             print("SKIP", error)
             continue
