@@ -85,6 +85,8 @@ class PetOverlayService : Service() {
     ) {
         var lastClip: String? = null
         var actionRunnable: Runnable? = null
+        var flingRunnable: Runnable? = null
+        var dragging: Boolean = false
     }
     private val extraPets = mutableListOf<ExtraPet>()
 
@@ -107,6 +109,7 @@ class PetOverlayService : Service() {
 
     private var bubbleOffsetX = 0f
     private var bubbleOffsetY = 0f
+    private var actionLockUntil = 0L
     private var bubbleDownX = 0f
     private var bubbleDownY = 0f
     private var bubbleStartOffsetX = 0f
@@ -119,6 +122,7 @@ class PetOverlayService : Service() {
 
     private var menuView: View? = null
     private var menuParams: WindowManager.LayoutParams? = null
+    private var menuExtra: ExtraPet? = null
     private var scrimView: View? = null
     private var collapsed = false
     private var lastAutonomousClip: String? = null
@@ -180,7 +184,7 @@ class PetOverlayService : Service() {
         scheduleAutoChat()
         scheduleAutonomousAction()
         handler.postDelayed({
-            if (!AppVisibility.foreground.value) {
+            if (canShowOverlay()) {
                 showBubble(
                     "我在这儿。点一下戳我，双击打开聊天。",
                     personaId = mainPersonaId() ?: personas.first()?.id,
@@ -241,6 +245,16 @@ class PetOverlayService : Service() {
         bubbleView = null
         petView = null
         super.onDestroy()
+    }
+
+    private fun scaleTypeFor(character: Character): ImageView.ScaleType {
+        val w = character.meta.frameWidth
+        val h = character.meta.frameHeight
+        return if (w > 0 && h > 0 && w.toFloat() / h > 1.15f) {
+            ImageView.ScaleType.CENTER_CROP
+        } else {
+            ImageView.ScaleType.FIT_CENTER
+        }
     }
 
     private fun showPet() {
@@ -360,6 +374,7 @@ class PetOverlayService : Service() {
                         if (dragging) {
                             params.x = clampX(startX + dx.toInt(), params.width)
                             params.y = clampY(startY + dy.toInt(), params.height)
+                            pushApart(params, null)
                             runCatching { windowManager.updateViewLayout(image, params) }
                             moveBubble()
                         }
@@ -391,7 +406,7 @@ class PetOverlayService : Service() {
         petParams = params
         windowManager.addView(image, params)
         petView?.visibility = when {
-            AppVisibility.foreground.value -> View.GONE
+            !canShowOverlay() -> View.GONE
             mainPersonaId() == null -> View.GONE
             else -> View.VISIBLE
         }
@@ -421,11 +436,11 @@ class PetOverlayService : Service() {
             val width = (dp(160) * settings.overlayScale).toInt().coerceAtLeast(dp(40))
             val height = (dp(180) * settings.overlayScale).toInt().coerceAtLeast(dp(45))
             val view = ImageView(this).apply {
-                scaleType = ImageView.ScaleType.FIT_CENTER
+                scaleType = scaleTypeFor(character)
                 contentDescription = persona.name
                 setImageDrawable(characters.loadClip(character, "idle"))
                 (drawable as? AnimatedImageDrawable)?.start()
-                visibility = if (AppVisibility.foreground.value) View.GONE else View.VISIBLE
+                visibility = if (canShowOverlay()) View.VISIBLE else View.GONE
             }
             val params = WindowManager.LayoutParams(
                 width,
@@ -446,6 +461,8 @@ class PetOverlayService : Service() {
             var startY = 0
             var moved = false
             var longPressed = false
+            var tracker: VelocityTracker? = null
+            val extra = ExtraPet(persona.id, character, view, params)
             val detector = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onDown(e: MotionEvent): Boolean = true
 
@@ -475,35 +492,64 @@ class PetOverlayService : Service() {
                 detector.onTouchEvent(event)
                 when (event.actionMasked) {
                     MotionEvent.ACTION_DOWN -> {
+                        extra.flingRunnable?.let(handler::removeCallbacks)
+                        extra.flingRunnable = null
+                        tracker?.recycle()
+                        tracker = VelocityTracker.obtain().also { it.addMovement(event) }
                         downX = event.rawX
                         downY = event.rawY
                         startX = params.x
                         startY = params.y
                         moved = false
                         longPressed = false
+                        extra.dragging = false
                     }
 
                     MotionEvent.ACTION_MOVE -> {
+                        tracker?.addMovement(event)
                         val dx = event.rawX - downX
                         val dy = event.rawY - downY
-                        if (abs(dx) > touchSlop || abs(dy) > touchSlop) moved = true
-                        params.x = clampX(startX + dx.toInt(), width)
-                        params.y = clampY(startY + dy.toInt(), height)
-                        runCatching { windowManager.updateViewLayout(view, params) }
-                        if (bubbleAnchor === params) moveBubble()
+                        if (abs(dx) > touchSlop || abs(dy) > touchSlop) {
+                            moved = true
+                            extra.dragging = true
+                        }
+                        if (extra.dragging) {
+                            params.x = clampX(startX + dx.toInt(), width)
+                            params.y = clampY(startY + dy.toInt(), height)
+                            pushApart(params, extra)
+                            runCatching { windowManager.updateViewLayout(view, params) }
+                            if (bubbleAnchor === params) moveBubble()
+                        }
                     }
 
                     MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                        if (longPressed && !moved) {
+                        tracker?.addMovement(event)
+                        if (extra.dragging) {
+                            tracker?.computeCurrentVelocity(1000)
+                            val vx = tracker?.xVelocity ?: 0f
+                            val vy = tracker?.yVelocity ?: 0f
+                            extra.dragging = false
+                            if (abs(vx) > 250f || abs(vy) > 250f) {
+                                flingExtra(extra, vx, vy)
+                            } else {
+                                pushApart(params, extra)
+                                runCatching { windowManager.updateViewLayout(view, params) }
+                            }
+                        } else if (longPressed && !moved) {
                             longPressed = false
-                            promoteExtraToMain(persona.id)
+                            showMenu(extra)
                         }
+                        longPressed = false
+                        tracker?.recycle()
+                        tracker = null
                     }
                 }
                 true
             }
             runCatching { windowManager.addView(view, params) }
-            extraPets.add(ExtraPet(persona.id, character, view, params))
+            extraPets.add(extra)
+            pushApart(params, extra)
+            runCatching { windowManager.updateViewLayout(view, params) }
         }
         extraPets.forEach { scheduleExtraAction(it) }
     }
@@ -512,7 +558,7 @@ class PetOverlayService : Service() {
         extra.actionRunnable?.let(handler::removeCallbacks)
         val runnable = object : Runnable {
             override fun run() {
-                if (!AppVisibility.foreground.value) {
+                if (!canShowOverlay() && System.currentTimeMillis() >= actionLockUntil) {
                     val excluded = setOf("idle", "thinking", "error", "dragging", "dragging_release", "success")
                     val pool = extra.character.meta.clips.keys
                         .filterNot { it in excluded }
@@ -534,12 +580,19 @@ class PetOverlayService : Service() {
     private fun clearExtraPets() {
         extraPets.forEach { pet ->
             pet.actionRunnable?.let(handler::removeCallbacks)
+            pet.flingRunnable?.let(handler::removeCallbacks)
             runCatching { windowManager.removeView(pet.view) }
         }
         extraPets.clear()
     }
 
-    private fun playClipOnView(character: Character, view: ImageView, name: String) {
+    private fun playClipOnView(
+        character: Character,
+        view: ImageView,
+        name: String,
+        priority: Boolean = false,
+    ) {
+        if (!priority && System.currentTimeMillis() < actionLockUntil) return
         val resolved = if (character.meta.clips.containsKey(name)) {
             name
         } else {
@@ -553,6 +606,9 @@ class PetOverlayService : Service() {
         view.setImageDrawable(clip)
         if (clip is AnimatedImageDrawable) clip.start()
         val duration = (character.meta.clips[resolved]?.durationMs ?: 1200).toLong()
+        if (priority) {
+            actionLockUntil = System.currentTimeMillis() + duration + 800L
+        }
         handler.postDelayed({
             val idle = characters.loadClip(character, character.meta.defaultClip)
             if (idle != null) {
@@ -560,14 +616,6 @@ class PetOverlayService : Service() {
                 if (idle is AnimatedImageDrawable) idle.start()
             }
         }, duration + 60L)
-    }
-
-    private fun promoteExtraToMain(personaId: String) {
-        settings.desktopMainPersonaId = personaId
-        personas.reload()
-        refreshExtraPets()
-        playClip("idle", once = false)
-        showMenu()
     }
 
     private fun openChatForPersona(personaId: String) {
@@ -636,8 +684,15 @@ class PetOverlayService : Service() {
         )
     }
 
-    private fun randomAction() {
-        autonomousClip()?.let { playClip(it, once = true) }
+    private fun randomAction(target: ExtraPet? = menuExtra) {
+        if (target != null) {
+            val name = target.character.meta.clips.keys
+                .filterNot { it in setOf("idle", "thinking", "error", "dragging", "dragging_release") }
+                .randomOrNull()
+            if (name != null) playClipOnView(target.character, target.view, name, priority = true)
+        } else {
+            autonomousClip()?.let { playClip(it, once = true, priority = true) }
+        }
     }
 
     private fun hideMenu() {
@@ -646,6 +701,7 @@ class PetOverlayService : Service() {
         menuView = null
         menuParams = null
         scrimView = null
+        menuExtra = null
     }
 
     private fun showScrim() {
@@ -666,8 +722,9 @@ class PetOverlayService : Service() {
         scrimView = scrim
     }
 
-    private fun showMenu() {
+    private fun showMenu(target: ExtraPet? = null) {
         hideMenu()
+        menuExtra = target
         val scale = settings.menuScale
         fun sdp(value: Int): Int = dp((value * scale).toInt())
         val metrics = resources.displayMetrics
@@ -729,7 +786,7 @@ class PetOverlayService : Service() {
             showActionList()
         }
         addItem("随机动作") {
-            randomAction()
+            randomAction(menuExtra)
             hideMenu()
         }
 
@@ -773,6 +830,29 @@ class PetOverlayService : Service() {
                     brightnessLabel.text = "亮度：$percent%"
                     settings.overlayBrightness = percent / 100f
                     applyBrightness()
+                }
+
+                override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
+                override fun onStopTrackingTouch(seekBar: SeekBar?) = Unit
+            })
+        })
+
+        val bounceLabel = TextView(this).apply {
+            text = "碰撞弹力：${(settings.petBounce * 100).toInt()}%"
+            textSize = 15f * scale
+            setTextColor(0xFF8A6A24.toInt())
+            setPadding(sdp(16), sdp(9), sdp(16), 0)
+        }
+        box.addView(bounceLabel)
+        box.addView(SeekBar(this).apply {
+            max = 90
+            progress = ((settings.petBounce * 100).toInt() - 10).coerceIn(0, 90)
+            setPadding(sdp(14), sdp(2), sdp(14), sdp(2))
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val percent = progress + 10
+                    bounceLabel.text = "碰撞弹力：$percent%"
+                    settings.petBounce = percent / 100f
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar?) = Unit
@@ -838,9 +918,13 @@ class PetOverlayService : Service() {
     }
 
     private fun showActionList() {
+        val target = menuExtra
         hideMenu()
-        val persona = personas.get(mainPersonaId()) ?: personas.first()
-        val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
+        val persona = if (target != null) personas.get(target.personaId) else personas.get(mainPersonaId())
+        val character = target?.character
+            ?: characters.get(persona?.characterId)
+            ?: characters.list().firstOrNull()
+            ?: return
         val clips = character.meta.clips
         if (clips.isEmpty()) return
 
@@ -891,7 +975,11 @@ class PetOverlayService : Service() {
                     isClickable = true
                     layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
                     setOnClickListener {
-                        playClip(name, once = !clip.loop)
+                        if (target != null) {
+                            playClipOnView(target.character, target.view, name, priority = true)
+                        } else {
+                            playClip(name, once = !clip.loop, priority = true)
+                        }
                         hideMenu()
                     }
                 })
@@ -911,7 +999,7 @@ class PetOverlayService : Service() {
             PixelFormat.TRANSLUCENT,
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            val pet = petParams
+            val pet = target?.params ?: petParams
             val gap = sdp(5)
             val rightSpace = if (pet != null) metrics.widthPixels - (pet.x + pet.width) else 0
             x = if (pet != null && rightSpace < panelWidth + gap && pet.x > panelWidth + gap) {
@@ -966,6 +1054,101 @@ class PetOverlayService : Service() {
         else -> name
     }
 
+    private fun pushApart(params: WindowManager.LayoutParams, ignore: ExtraPet?): Boolean {
+        var hit = false
+        val others = mutableListOf<WindowManager.LayoutParams>()
+        petParams?.takeIf { it !== params }?.let(others::add)
+        extraPets.filter { it !== ignore && it.params !== params }.forEach { others.add(it.params) }
+        for (other in others) {
+            val overlapX = min(params.x + params.width, other.x + other.width) - max(params.x, other.x)
+            val overlapY = min(params.y + params.height, other.y + other.height) - max(params.y, other.y)
+            if (overlapX > 0 && overlapY > 0) {
+                hit = true
+                if (overlapX < overlapY) {
+                    val push = overlapX + 1
+                    if (params.x + params.width / 2 < other.x + other.width / 2) {
+                        params.x -= push
+                    } else {
+                        params.x += push
+                    }
+                } else {
+                    val push = overlapY + 1
+                    if (params.y + params.height / 2 < other.y + other.height / 2) {
+                        params.y -= push
+                    } else {
+                        params.y += push
+                    }
+                }
+                params.x = clampX(params.x, params.width)
+                params.y = clampY(params.y, params.height)
+            }
+        }
+        return hit
+    }
+
+    private fun flingExtra(extra: ExtraPet, vx0: Float, vy0: Float) {
+        extra.flingRunnable?.let(handler::removeCallbacks)
+        val view = extra.view
+        val params = extra.params
+        val bounds = boundsFor(params.width, params.height)
+        val minX = bounds[0].toFloat()
+        val maxX = bounds[1].toFloat()
+        val minY = bounds[2].toFloat()
+        val maxY = bounds[3].toFloat()
+        var x = params.x.toFloat()
+        var y = params.y.toFloat()
+        var vx = vx0.coerceIn(-6000f, 6000f)
+        var vy = vy0.coerceIn(-6000f, 6000f)
+        val bounce = settings.petBounce.coerceIn(0.1f, 1f)
+        val gravity = 2200f
+        var last = System.nanoTime()
+
+        val runnable = object : Runnable {
+            override fun run() {
+                val now = System.nanoTime()
+                val dt = ((now - last) / 1_000_000_000f).coerceIn(0.001f, 0.05f)
+                last = now
+                vy += gravity * dt
+                x += vx * dt
+                y += vy * dt
+                if (x < minX) {
+                    x = minX
+                    vx = -vx * bounce
+                } else if (x > maxX) {
+                    x = maxX
+                    vx = -vx * bounce
+                }
+                if (y < minY) {
+                    y = minY
+                    vy = -vy * bounce
+                } else if (y > maxY) {
+                    y = maxY
+                    vy = -vy * bounce
+                    vx *= 0.86f
+                }
+                params.x = x.toInt()
+                params.y = y.toInt()
+                if (pushApart(params, extra)) {
+                    x = params.x.toFloat()
+                    y = params.y.toFloat()
+                    vx = -vx * bounce
+                    vy = -vy * bounce
+                }
+                runCatching { windowManager.updateViewLayout(view, params) }
+                if (bubbleAnchor === params) moveBubble()
+                val resting = y >= maxY - 1 && abs(vy) < 60f && abs(vx) < 60f
+                if (!resting) {
+                    extra.flingRunnable = this
+                    handler.postDelayed(this, 16)
+                } else {
+                    extra.flingRunnable = null
+                }
+            }
+        }
+        extra.flingRunnable = runnable
+        handler.post(runnable)
+    }
+
     private fun fling(vx0: Float, vy0: Float) {
         val image = petView ?: return
         val params = petParams ?: return
@@ -981,6 +1164,7 @@ class PetOverlayService : Service() {
         var vy = vy0.coerceIn(-6000f, 6000f)
         var last = System.nanoTime()
         val gravity = 2200f
+        val bounce = settings.petBounce.coerceIn(0.1f, 1f)
 
         val runnable = object : Runnable {
             override fun run() {
@@ -994,22 +1178,28 @@ class PetOverlayService : Service() {
 
                 if (x < minX) {
                     x = minX.toFloat()
-                    vx = -vx * 0.62f
+                    vx = -vx * bounce
                 } else if (x > maxX) {
                     x = maxX.toFloat()
-                    vx = -vx * 0.62f
+                    vx = -vx * bounce
                 }
                 if (y < minY) {
                     y = minY.toFloat()
-                    vy = -vy * 0.55f
+                    vy = -vy * bounce
                 } else if (y > maxY) {
                     y = maxY.toFloat()
-                    vy = -vy * 0.55f
+                    vy = -vy * bounce
                     vx *= 0.86f
                 }
 
                 params.x = x.toInt()
                 params.y = y.toInt()
+                if (pushApart(params, null)) {
+                    x = params.x.toFloat()
+                    y = params.y.toFloat()
+                    vx = -vx * bounce
+                    vy = -vy * bounce
+                }
                 runCatching { windowManager.updateViewLayout(image, params) }
                 moveBubble()
 
@@ -1050,12 +1240,13 @@ class PetOverlayService : Service() {
 
     private fun observeAppVisibility() {
         scope.launch {
-            AppVisibility.foreground.collect { foreground ->
-                petView?.visibility = if (foreground || mainPersonaId() == null) View.GONE else View.VISIBLE
+            AppVisibility.foreground.collect {
+                val show = canShowOverlay() && mainPersonaId() != null
+                petView?.visibility = if (show) View.VISIBLE else View.GONE
                 extraPets.forEach { extra ->
-                    extra.view.visibility = if (foreground || mainPersonaId() == null) View.GONE else View.VISIBLE
+                    extra.view.visibility = if (show) View.VISIBLE else View.GONE
                 }
-                if (foreground) {
+                if (!show) {
                     hideBubble()
                 } else if (petView?.drawable == null) {
                     playClip("idle", once = false)
@@ -1083,7 +1274,8 @@ class PetOverlayService : Service() {
     }
 
     private fun performAutonomousAction() {
-        if (AppVisibility.foreground.value || dragging || menuView != null) return
+        if (!canShowOverlay() || dragging || menuView != null) return
+        if (System.currentTimeMillis() < actionLockUntil) return
         val clip = autonomousClip() ?: return
         playClip(clip, once = true)
     }
@@ -1167,7 +1359,11 @@ class PetOverlayService : Service() {
         return main?.takeIf { it in selected } ?: selected.firstOrNull()
     }
 
-    private fun playClip(name: String, once: Boolean) {
+    private fun canShowOverlay(): Boolean =
+        !AppVisibility.foreground.value || settings.showPetInApp
+
+    private fun playClip(name: String, once: Boolean, priority: Boolean = false) {
+        if (!priority && System.currentTimeMillis() < actionLockUntil) return
         personas.reload()
         val persona = personas.get(mainPersonaId()) ?: return
         val character = characters.get(persona?.characterId) ?: characters.list().firstOrNull() ?: return
@@ -1179,8 +1375,9 @@ class PetOverlayService : Service() {
             ?: return
 
         petView?.setImageDrawable(drawable)
+        petView?.scaleType = scaleTypeFor(character)
         if (drawable is AnimatedImageDrawable) drawable.start()
-        if (!AppVisibility.foreground.value) {
+        if (canShowOverlay()) {
             petView?.visibility = View.VISIBLE
         }
 
@@ -1196,15 +1393,20 @@ class PetOverlayService : Service() {
                 moveBubble()
             }
         }
-        petView?.scaleType = ImageView.ScaleType.FIT_CENTER
+        petView?.scaleType = scaleTypeFor(character)
 
         revert?.let(handler::removeCallbacks)
         revert = null
 
+        val duration = character.meta.clips[name]
+            ?.durationMs
+            ?.takeIf { it > 0 }
+            ?: 2200
+        if (priority) {
+            actionLockUntil = System.currentTimeMillis() + duration + 800L
+        }
         if (once) {
-            val meta = character.meta.clips[name] ?: character.meta.clips[character.meta.defaultClip]
-            val duration = meta?.durationMs?.takeIf { it > 0 } ?: 2200
-            val runnable = Runnable { playClip("idle", once = false) }
+            val runnable = Runnable { playClip("idle", once = false, priority = true) }
             revert = runnable
             handler.postDelayed(runnable, duration.toLong() + 60L)
         }
@@ -1217,7 +1419,7 @@ class PetOverlayService : Service() {
         groupId: String? = null,
         anchor: WindowManager.LayoutParams? = null,
     ) {
-        if (AppVisibility.foreground.value) return
+        if (!canShowOverlay()) return
         bubbleConversationId = conversationId
         bubblePersonaId = personaId
         bubbleGroupId = groupId
