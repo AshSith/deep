@@ -84,6 +84,7 @@ class PetOverlayService : Service() {
         val params: WindowManager.LayoutParams,
     ) {
         var lastClip: String? = null
+        val recentClips = mutableListOf<String>()
         var actionRunnable: Runnable? = null
         var flingRunnable: Runnable? = null
         var dragging: Boolean = false
@@ -128,6 +129,7 @@ class PetOverlayService : Service() {
     private var scrimView: View? = null
     private var collapsed = false
     private var lastAutonomousClip: String? = null
+    private val recentAutonomousClips = mutableListOf<String>()
     private var soundPool: SoundPool? = null
     private var quackId = 0
 
@@ -559,15 +561,16 @@ class PetOverlayService : Service() {
         extra.actionRunnable?.let(handler::removeCallbacks)
         val runnable = object : Runnable {
             override fun run() {
-                if (!canShowOverlay() && System.currentTimeMillis() >= actionLockUntil) {
+                if (canShowOverlay() && System.currentTimeMillis() >= actionLockUntil) {
                     val excluded = setOf("idle", "thinking", "error", "dragging", "dragging_release", "success")
-                    val pool = extra.character.meta.clips.keys
-                        .filterNot { it in excluded }
-                        .filterNot { it == extra.lastClip }
-                    val clip = pool.randomOrNull()
-                        ?: extra.character.meta.clips.keys.filterNot { it in excluded }.randomOrNull()
+                    val candidates = extra.character.meta.clips.keys.filterNot { it in excluded }
+                    val fresh = candidates.filterNot { it in extra.recentClips }
+                    val pool = fresh.ifEmpty { candidates.filterNot { it == extra.lastClip } }
+                    val clip = pool.randomOrNull() ?: candidates.randomOrNull()
                     if (clip != null) {
                         extra.lastClip = clip
+                        extra.recentClips.add(clip)
+                        while (extra.recentClips.size > 8) extra.recentClips.removeAt(0)
                         playClipOnView(extra.character, extra.view, clip)
                     }
                 }
@@ -1090,14 +1093,25 @@ class PetOverlayService : Service() {
         else -> name
     }
 
+    private fun bodyBounds(params: WindowManager.LayoutParams): IntArray {
+        val insetX = (params.width * 0.12f).toInt()
+        val insetY = (params.height * 0.04f).toInt()
+        return intArrayOf(
+            params.x + insetX,
+            params.y + insetY,
+            params.x + params.width - insetX,
+            params.y + params.height - insetY,
+        )
+    }
+
     private fun overlapsAny(params: WindowManager.LayoutParams, ignore: ExtraPet?): Boolean {
         val others = mutableListOf<WindowManager.LayoutParams>()
         petParams?.takeIf { it !== params }?.let(others::add)
         extraPets.filter { it !== ignore && it.params !== params }.forEach { others.add(it.params) }
+        val a = bodyBounds(params)
         return others.any { other ->
-            val overlapX = min(params.x + params.width, other.x + other.width) - max(params.x, other.x)
-            val overlapY = min(params.y + params.height, other.y + other.height) - max(params.y, other.y)
-            overlapX > 0 && overlapY > 0
+            val b = bodyBounds(other)
+            min(a[2], b[2]) - max(a[0], b[0]) > 0 && min(a[3], b[3]) - max(a[1], b[1]) > 0
         }
     }
 
@@ -1299,12 +1313,17 @@ class PetOverlayService : Service() {
         val candidates = character.meta.clips.keys.filterNot { it in excluded }
         if (candidates.isEmpty()) return null
         val pool = if (candidates.size > 1) {
-            candidates.filterNot { it == lastAutonomousClip }
+            val fresh = candidates.filterNot { it in recentAutonomousClips }
+            fresh.ifEmpty { candidates.filterNot { it == lastAutonomousClip } }
         } else {
             candidates
         }
         val chosen = pool.randomOrNull() ?: candidates.randomOrNull()
         lastAutonomousClip = chosen
+        if (chosen != null) {
+            recentAutonomousClips.add(chosen)
+            while (recentAutonomousClips.size > 8) recentAutonomousClips.removeAt(0)
+        }
         return chosen
     }
 
