@@ -80,6 +80,7 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
     val bubbleTextColor by vm.bubbleTextColor.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
     val duckSound by vm.duckSoundEnabled.collectAsStateWithLifecycle()
+    val showInApp by vm.showPetInApp.collectAsStateWithLifecycle()
     val personas by vm.personas.collectAsStateWithLifecycle()
     val desktopPets by vm.desktopPetPersonaIds.collectAsStateWithLifecycle()
     var showPetPicker by remember { mutableStateOf(false) }
@@ -285,6 +286,23 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
                             Switch(
                                 checked = duckSound,
                                 onCheckedChange = { vm.setDuckSoundEnabled(it) },
+                            )
+                        }
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text("在 App 内显示桌宠", style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    "打开 App 时桌宠也悬浮在界面上",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Switch(
+                                checked = showInApp,
+                                onCheckedChange = { vm.setShowPetInApp(it) },
                             )
                         }
                     }
