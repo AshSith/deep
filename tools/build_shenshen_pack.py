@@ -24,6 +24,10 @@ W = int(os.environ.get("SHENSHEN_W", "320"))
 H = int(os.environ.get("SHENSHEN_H", "360"))
 CROP = os.environ.get("SHENSHEN_CROP", "320:360:160:0")
 QUALITY = int(os.environ.get("SHENSHEN_QUALITY", "15"))
+EXTRA_FILTER = os.environ.get("SHENSHEN_EXTRA_FILTER", "")
+VIDEO_FILTER = f"fps={FPS},crop={CROP},scale={W}:{H}"
+if EXTRA_FILTER:
+    VIDEO_FILTER += "," + EXTRA_FILTER
 
 ALIASES = {
     "待机呼吸休闲": "idle",
@@ -84,7 +88,7 @@ def main():
             [
                 str(FFMPEG), "-y", "-hide_banner", "-loglevel", "error",
                 "-c:v", "libvpx-vp9", "-i", str(source),
-                "-vf", f"fps={FPS},crop={CROP},scale={W}:{H}",
+                "-vf", VIDEO_FILTER,
                 "-c:v", "libwebp_anim", "-quality", str(QUALITY), "-loop", "0", "-an",
                 str(dest),
             ],
