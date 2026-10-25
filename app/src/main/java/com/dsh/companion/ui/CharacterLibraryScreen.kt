@@ -21,6 +21,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
@@ -48,6 +49,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun CharacterLibraryScreen(vm: MainViewModel, onBack: () -> Unit) {
     val characters by vm.characters.collectAsStateWithLifecycle()
+    val importProgress by vm.characterImportProgress.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     var deleteTarget by remember { mutableStateOf<com.dsh.companion.data.Character?>(null) }
@@ -92,6 +94,21 @@ fun CharacterLibraryScreen(vm: MainViewModel, onBack: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+            }
+            if (importProgress != null) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        val value = importProgress?.coerceIn(0f, 1f) ?: 0f
+                        Text(
+                            text = "正在导入角色包… ${(value * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        LinearProgressIndicator(
+                            progress = { value },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
             items(characters, key = { it.id }) { character ->
                 Card(shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
