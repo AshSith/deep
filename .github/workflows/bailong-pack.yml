@@ -21,7 +21,19 @@ jobs:
           curl -fL --retry 4 --retry-delay 5 \
             -o /tmp/bailong.zip \
             https://github.com/jingh12312-rgb/bailong-desktop-pet/releases/download/v0.4.1/bailong-desktop-pet-v0.4.1-windows-x64.zip
-          unzip -q /tmp/bailong.zip -d /tmp/bailong
+          rm -rf /tmp/bailong /tmp/bailong-unused
+          python3 - <<'PY'
+          import pathlib, zipfile
+          src = zipfile.ZipFile('/tmp/bailong.zip', metadata_encoding='gbk')
+          dest = pathlib.Path('/tmp/bailong')
+          for info in src.infolist():
+              if info.is_dir():
+                  continue
+              target = dest / info.filename
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_bytes(src.read(info))
+          print('extracted', len(src.infolist()))
+          PY
           echo "=== top ==="
           find /tmp/bailong -maxdepth 3 -type d | head -40
           echo "=== files ==="
