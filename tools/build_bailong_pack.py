@@ -18,9 +18,16 @@ QUALITY = 82
 
 
 def find_manifest(root: pathlib.Path) -> pathlib.Path:
-    for path in root.rglob("素材清单.json"):
-        return path
-    raise SystemExit("素材清单.json not found")
+    # ZIP filenames from the Windows release are mojibake in this environment,
+    # so identify the manifest by its JSON shape instead of its Chinese name.
+    for path in root.rglob("*.json"):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if isinstance(data, dict) and "idle" in data and ("variants" in data or "workAnimations" in data):
+            return path
+    raise SystemExit("asset manifest JSON not found")
 
 
 def walk_items(node):
