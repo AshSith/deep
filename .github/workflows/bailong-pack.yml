@@ -22,6 +22,10 @@ jobs:
             -o /tmp/bailong.zip \
             https://github.com/jingh12312-rgb/bailong-desktop-pet/releases/download/v0.4.1/bailong-desktop-pet-v0.4.1-windows-x64.zip
           unzip -q /tmp/bailong.zip -d /tmp/bailong
+          echo "=== top ==="
+          find /tmp/bailong -maxdepth 3 -type d | head -40
+          echo "=== files ==="
+          find /tmp/bailong -maxdepth 4 -type f | head -80
 
       - name: Build pack
         run: |
