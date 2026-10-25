@@ -141,6 +141,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
 
+    private val _characterImportProgress = MutableStateFlow<Float?>(null)
+    val characterImportProgress: StateFlow<Float?> = _characterImportProgress.asStateFlow()
+
     private val _overlayEnabled = MutableStateFlow(settings.overlayEnabled)
     val overlayEnabled: StateFlow<Boolean> = _overlayEnabled.asStateFlow()
 
@@ -429,9 +432,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun importCharacter(uri: Uri, onResult: (String) -> Unit) {
+        _characterImportProgress.value = 0f
         viewModelScope.launch {
             runCatching {
-                withContext(Dispatchers.IO) { characterRepository.importZip(uri) }
+                withContext(Dispatchers.IO) {
+                    characterRepository.importZip(uri) { progress ->
+                        _characterImportProgress.value = progress
+                    }
+                }
             }.onSuccess { character ->
                 refreshCharacters()
                 PetBus.emit(PetEvent.RefreshPets)
@@ -440,6 +448,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             }.onFailure {
                 onResult("导入失败：${it.message ?: "未知错误"}")
             }
+            _characterImportProgress.value = null
         }
     }
 
