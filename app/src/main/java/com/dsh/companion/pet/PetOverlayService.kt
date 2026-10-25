@@ -1232,7 +1232,10 @@ class PetOverlayService : Service() {
                     PetEvent.Success -> playClip("success", once = true)
                     PetEvent.Error -> playClip("error", once = true)
                     PetEvent.MotionFrequencyChanged -> scheduleAutonomousAction()
-                    PetEvent.RefreshPets -> refreshExtraPets()
+                    PetEvent.RefreshPets -> {
+                        refreshExtraPets()
+                        applyVisibility()
+                    }
                 }
             }
         }
@@ -1241,12 +1244,8 @@ class PetOverlayService : Service() {
     private fun observeAppVisibility() {
         scope.launch {
             AppVisibility.foreground.collect {
-                val show = canShowOverlay() && mainPersonaId() != null
-                petView?.visibility = if (show) View.VISIBLE else View.GONE
-                extraPets.forEach { extra ->
-                    extra.view.visibility = if (show) View.VISIBLE else View.GONE
-                }
-                if (!show) {
+                applyVisibility()
+                if (!canShowOverlay()) {
                     hideBubble()
                 } else if (petView?.drawable == null) {
                     playClip("idle", once = false)
@@ -1361,6 +1360,12 @@ class PetOverlayService : Service() {
 
     private fun canShowOverlay(): Boolean =
         !AppVisibility.foreground.value || settings.showPetInApp
+
+    private fun applyVisibility() {
+        val show = canShowOverlay() && mainPersonaId() != null
+        petView?.visibility = if (show) View.VISIBLE else View.GONE
+        extraPets.forEach { it.view.visibility = if (show) View.VISIBLE else View.GONE }
+    }
 
     private fun playClip(name: String, once: Boolean, priority: Boolean = false) {
         if (!priority && System.currentTimeMillis() < actionLockUntil) return
