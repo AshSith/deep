@@ -13,8 +13,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Pillow
-        run: python3 -m pip install --quiet pillow ftfy
+      - name: Install tools
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg
+          python3 -m pip install --quiet pillow ftfy
 
       - name: Download Bailong release
         run: |
