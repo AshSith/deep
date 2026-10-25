@@ -10,14 +10,20 @@ import subprocess
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SRC = ROOT / "tools" / "shenshen-webm"
 MANIFEST = json.loads((ROOT / "tools" / "shenshen-manifest.json").read_text(encoding="utf-8"))
-OUT = ROOT / "app" / "src" / "main" / "assets" / "characters" / "shenshen"
+OUT = pathlib.Path(os.environ.get(
+    "SHENSHEN_OUT",
+    str(ROOT / "app" / "src" / "main" / "assets" / "characters" / "shenshen"),
+))
 _LOCAL_FFMPEG = ROOT / ".tools" / "ffmpeg" / "ffmpeg-9.0.2-essentials_build" / "bin" / "ffmpeg.exe"
 _LOCAL_FFPROBE = ROOT / ".tools" / "ffmpeg" / "ffmpeg-9.0.2-essentials_build" / "bin" / "ffprobe.exe"
 FFMPEG = pathlib.Path(os.environ.get("FFMPEG", str(_LOCAL_FFMPEG) if _LOCAL_FFMPEG.exists() else "ffmpeg"))
 FFPROBE = pathlib.Path(os.environ.get("FFPROBE", str(_LOCAL_FFPROBE) if _LOCAL_FFPROBE.exists() else "ffprobe"))
 
-FPS = 18
-W, H = 320, 360
+FPS = int(os.environ.get("SHENSHEN_FPS", "18"))
+W = int(os.environ.get("SHENSHEN_W", "320"))
+H = int(os.environ.get("SHENSHEN_H", "360"))
+CROP = os.environ.get("SHENSHEN_CROP", "320:360:160:0")
+QUALITY = int(os.environ.get("SHENSHEN_QUALITY", "15"))
 
 ALIASES = {
     "待机呼吸休闲": "idle",
@@ -78,8 +84,8 @@ def main():
             [
                 str(FFMPEG), "-y", "-hide_banner", "-loglevel", "error",
                 "-c:v", "libvpx-vp9", "-i", str(source),
-                "-vf", f"fps={FPS},crop=320:360:160:0,scale={W}:{H}",
-                "-c:v", "libwebp_anim", "-quality", "15", "-loop", "0", "-an",
+                "-vf", f"fps={FPS},crop={CROP},scale={W}:{H}",
+                "-c:v", "libwebp_anim", "-quality", str(QUALITY), "-loop", "0", "-an",
                 str(dest),
             ],
             capture_output=True,
