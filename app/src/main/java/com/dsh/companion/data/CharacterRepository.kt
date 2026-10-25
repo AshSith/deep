@@ -93,42 +93,34 @@ class CharacterRepository(private val context: Context) {
     }
 
     fun importZip(uri: Uri): Character {
-        val entries = LinkedHashMap<String, ByteArray>()
-        var total = 0L
-
-        val input = context.contentResolver.openInputStream(uri)
+        // First pass: only read character.json. The pack itself can be 300+ MB,
+        // so never load every animation frame into a ByteArray map.
+        var metaKey: String? = null
+        var metaBytes: ByteArray? = null
+        val metaInput = context.contentResolver.openInputStream(uri)
             ?: throw IOException("打不开这个文件")
-        ZipInputStream(BufferedInputStream(input)).use { zip ->
+        ZipInputStream(BufferedInputStream(metaInput)).use { zip ->
             while (true) {
                 val entry = zip.nextEntry ?: break
-                val name = entry.name.replace('\\', '/')
                 if (entry.isDirectory) continue
+                val name = entry.name.replace('\\', '/')
                 if (name.startsWith("/") || name.contains("..")) continue
-                if (ALLOWED.none { name.endsWith(it, ignoreCase = true) }) continue
+                if (name != "character.json" && !name.endsWith("/character.json")) continue
                 val bytes = zip.readBytes()
-                total += bytes.size
-                if (total > MAX_TOTAL) throw IOException("角色包太大了（上限 450MB）")
-                entries[name] = bytes
+                if (bytes.size > 2 * 1024 * 1024) throw IOException("character.json 太大了")
+                if (metaKey == null || name.count { it == '/' } < metaKey!!.count { it == '/' }) {
+                    metaKey = name
+                    metaBytes = bytes
+                }
             }
         }
 
-        val metaKey = entries.keys
-            .filter { it == "character.json" || it.endsWith("/character.json") }
-            .minByOrNull { it.count { ch -> ch == '/' } }
-            ?: throw IOException("角色包里没有 character.json")
-
-        val text = String(entries.getValue(metaKey), Charsets.UTF_8)
-        val rawMeta = JsonStore.json.decodeFromString<CharacterMeta>(text)
-
-        val prefix = if (metaKey.contains('/')) metaKey.substringBeforeLast('/') + "/" else ""
-
-        rawMeta.clips.values.forEach { clip ->
-            val rel = clip.file.replace('\\', '/')
-            if (!entries.containsKey(prefix + rel)) {
-                throw IOException("角色包缺少动画文件：${clip.file}")
-            }
-        }
+        val key = metaKey ?: throw IOException("角色包里没有 character.json")
+        val rawMeta = JsonStore.json.decodeFromString<CharacterMeta>(
+            String(metaBytes ?: throw IOException("character.json 读取失败"), Charsets.UTF_8)
+        )
         if (rawMeta.clips.isEmpty()) throw IOException("角色包没有 clips")
+        val prefix = if (key.contains('/')) key.substringBeforeLast('/') + "/" else ""
 
         val baseId = rawMeta.id.ifBlank { "custom" }
             .replace(Regex("[^A-Za-z0-9_-]"), "-")
@@ -147,15 +139,42 @@ class CharacterRepository(private val context: Context) {
         temp.mkdirs()
 
         try {
-            entries.forEach { (name, bytes) ->
-                if (!name.startsWith(prefix)) return@forEach
-                val rel = name.removePrefix(prefix)
-                if (rel.isBlank() || rel == "character.json") return@forEach
-                val target = File(temp, rel)
-                val canonical = target.canonicalFile
-                if (!canonical.path.startsWith(temp.canonicalFile.path)) return@forEach
-                canonical.parentFile?.mkdirs()
-                canonical.writeBytes(bytes)
+            // Second pass: stream every frame straight to disk.
+            var total = 0L
+            val dataInput = context.contentResolver.openInputStream(uri)
+                ?: throw IOException("打不开这个文件")
+            ZipInputStream(BufferedInputStream(dataInput)).use { zip ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (entry.isDirectory) continue
+                    val name = entry.name.replace('\\', '/')
+                    if (name.startsWith("/") || name.contains("..")) continue
+                    if (!name.startsWith(prefix)) continue
+                    if (ALLOWED.none { name.endsWith(it, ignoreCase = true) }) continue
+                    val rel = name.removePrefix(prefix)
+                    if (rel.isBlank() || rel == "character.json") continue
+                    val target = File(temp, rel)
+                    val canonical = target.canonicalFile
+                    if (!canonical.path.startsWith(temp.canonicalFile.path)) continue
+                    canonical.parentFile?.mkdirs()
+                    canonical.outputStream().use { output ->
+                        while (true) {
+                            val count = zip.read(buffer)
+                            if (count <= 0) break
+                            total += count
+                            if (total > MAX_TOTAL) {
+                                throw IOException("角色包太大了（上限 450MB）")
+                            }
+                            output.write(buffer, 0, count)
+                        }
+                    }
+                }
+            }
+
+            rawMeta.clips.values.forEach { clip ->
+                val file = File(temp, clip.file.replace('\\', '/'))
+                if (!file.isFile) throw IOException("角色包缺少动画文件：${clip.file}")
             }
 
             val meta = rawMeta.copy(id = folderName)
