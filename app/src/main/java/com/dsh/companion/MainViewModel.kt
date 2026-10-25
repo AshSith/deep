@@ -79,6 +79,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val _duckSoundEnabled = MutableStateFlow(settings.duckSoundEnabled)
     val duckSoundEnabled: StateFlow<Boolean> = _duckSoundEnabled.asStateFlow()
 
+    private val _showPetInApp = MutableStateFlow(settings.showPetInApp)
+    val showPetInApp: StateFlow<Boolean> = _showPetInApp.asStateFlow()
+
     private val _extraPetPersonaIds = MutableStateFlow(
         settings.extraPetPersonaIds.split(',').filter { it.isNotBlank() }.toSet()
     )
@@ -265,6 +268,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setDuckSoundEnabled(value: Boolean) {
         settings.duckSoundEnabled = value
         _duckSoundEnabled.value = value
+    }
+
+    fun setShowPetInApp(value: Boolean) {
+        settings.showPetInApp = value
+        _showPetInApp.value = value
+        PetBus.emit(PetEvent.RefreshPets)
     }
 
     private fun ensureDesktopPersona(id: String) {
