@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main, master ]
 
+concurrency:
+  group: build-apk-main
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -18,21 +22,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Install ffmpeg
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
-
-      - name: Fetch shenshen source
-        run: |
-          git clone --depth 1 https://github.com/MerZlin/dsh-pet-indesktop /tmp/shenshen-source
-
-      - name: Generate shenshen HD assets
-        env:
-          SHENSHEN_SOURCE: /tmp/shenshen-source
-        run: |
-          python3 tools/build_shenshen_pack.py
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
