@@ -92,11 +92,14 @@ class CharacterRepository(private val context: Context) {
         }
     }
 
-    fun importZip(uri: Uri): Character {
+    fun importZip(uri: Uri, onProgress: (Float) -> Unit = {}): Character {
+        onProgress(0f)
         // First pass: only read character.json. The pack itself can be 300+ MB,
         // so never load every animation frame into a ByteArray map.
         var metaKey: String? = null
         var metaBytes: ByteArray? = null
+        var expected = 0L
+        var expectedEntries = 0
         val metaInput = context.contentResolver.openInputStream(uri)
             ?: throw IOException("打不开这个文件")
         ZipInputStream(BufferedInputStream(metaInput)).use { zip ->
@@ -105,6 +108,10 @@ class CharacterRepository(private val context: Context) {
                 if (entry.isDirectory) continue
                 val name = entry.name.replace('\\', '/')
                 if (name.startsWith("/") || name.contains("..")) continue
+                if (ALLOWED.any { name.endsWith(it, ignoreCase = true) } && entry.size > 0) {
+                    expected += entry.size
+                    expectedEntries += 1
+                }
                 if (name != "character.json" && !name.endsWith("/character.json")) continue
                 val bytes = zip.readBytes()
                 if (bytes.size > 2 * 1024 * 1024) throw IOException("character.json 太大了")
@@ -141,6 +148,7 @@ class CharacterRepository(private val context: Context) {
         try {
             // Second pass: stream every frame straight to disk.
             var total = 0L
+            var doneEntries = 0
             val dataInput = context.contentResolver.openInputStream(uri)
                 ?: throw IOException("打不开这个文件")
             ZipInputStream(BufferedInputStream(dataInput)).use { zip ->
@@ -169,6 +177,12 @@ class CharacterRepository(private val context: Context) {
                             output.write(buffer, 0, count)
                         }
                     }
+                    if (expected > 0) {
+                        onProgress((total.toFloat() / expected).coerceIn(0f, 0.99f))
+                    } else if (expectedEntries > 0) {
+                        doneEntries += 1
+                        onProgress((doneEntries.toFloat() / expectedEntries).coerceIn(0f, 0.99f))
+                    }
                 }
             }
 
@@ -176,6 +190,7 @@ class CharacterRepository(private val context: Context) {
                 val file = File(temp, clip.file.replace('\\', '/'))
                 if (!file.isFile) throw IOException("角色包缺少动画文件：${clip.file}")
             }
+            onProgress(1f)
 
             val meta = rawMeta.copy(id = folderName)
             JsonStore.write(File(temp, "character.json"), meta)
