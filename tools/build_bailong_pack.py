@@ -79,41 +79,37 @@ def find_asset(asset_dir: pathlib.Path, item: dict) -> pathlib.Path:
     raise FileNotFoundError(f"asset not found for {item.get('id')}: {wanted}")
 
 
+def frame_rgba(image: Image.Image) -> Image.Image:
+    image = image.convert("RGBA")
+    scale = min(W / image.width, H / image.height)
+    new_w = max(1, round(image.width * scale))
+    new_h = max(1, round(image.height * scale))
+    resized = image.resize((new_w, new_h), Image.Resampling.BICUBIC)
+    canvas = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    canvas.alpha_composite(resized, ((W - new_w) // 2, (H - new_h) // 2))
+    return canvas
+
+
 def encode(src: pathlib.Path, dst: pathlib.Path) -> dict:
+    with Image.open(src) as image:
+        frames = []
+        durations = []
+        for i in range(getattr(image, "n_frames", 1)):
+            image.seek(i)
+            frames.append(frame_rgba(image))
+            durations.append(int(image.info.get("duration", 40) or 40))
     dst.parent.mkdir(parents=True, exist_ok=True)
-    vf = (
-        f"scale={W}:{H}:force_original_aspect_ratio=decrease,"
-        f"pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black@0,format=rgba"
+    frames[0].save(
+        dst,
+        save_all=True,
+        append_images=frames[1:],
+        duration=durations,
+        loop=0,
+        quality=75,
+        method=0,
     )
-    subprocess.run(
-        [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error",
-            "-i", str(src),
-            "-vf", vf,
-            "-c:v", "libwebp_anim", "-quality", str(QUALITY),
-            "-loop", "0", "-an", "-fps_mode", "passthrough",
-            str(dst),
-        ],
-        check=True,
-    )
-    probe = subprocess.run(
-        [
-            "ffprobe", "-v", "error", "-select_streams", "v:0",
-            "-show_entries", "stream=nb_frames,duration,avg_frame_rate",
-            "-of", "json", str(dst),
-        ],
-        capture_output=True, text=True,
-    )
-    stream = {}
-    try:
-        stream = json.loads(probe.stdout)["streams"][0]
-    except Exception:
-        pass
-    duration = float(stream.get("duration") or 0)
-    frames = int(stream.get("nb_frames") or 0)
-    if frames <= 0 and duration > 0:
-        frames = max(1, round(duration * 30))
-    return {"frames": frames, "durationMs": max(1, round(duration * 1000))}
+    total_ms = sum(durations)
+    return {"frames": len(frames), "durationMs": max(1, total_ms)}
 
 
 def main():
