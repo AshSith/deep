@@ -172,7 +172,7 @@ class CharacterRepository(private val context: Context) {
                             if (count <= 0) break
                             total += count
                             if (total > MAX_TOTAL) {
-                                throw IOException("角色包太大了（上限 450MB）")
+                                throw IOException("角色包太大了（上限 1.5GB）")
                             }
                             output.write(buffer, 0, count)
                         }
@@ -237,6 +237,6 @@ class CharacterRepository(private val context: Context) {
 
     private companion object {
         val ALLOWED = listOf(".webp", ".png", ".json", ".md", ".txt")
-        const val MAX_TOTAL = 450L * 1024 * 1024
+        const val MAX_TOTAL = 1536L * 1024 * 1024
     }
 }
