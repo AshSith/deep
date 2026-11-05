@@ -178,8 +178,8 @@ def main():
 
     meta = {
         "id": "bailong",
-        "name": "GPT白龙娘",
-        "subtitle": f"{len(clips)} 动作 · 白龙桌宠",
+        "name": "\u0047\u0050\u0054\u767d\u9f99\u5a18",
+        "subtitle": "25 \u52a8\u4f5c \u00b7 \u767d\u9f99\u684c\u5ba0",
         "author": "jingh12312-rgb",
         "license": "Author permission for personal use; upstream licence unspecified",
         "fps": 30,
@@ -191,12 +191,12 @@ def main():
     }
     (out / "character.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     (out / "NOTICE.md").write_text(
-        "# GPT白龙娘角色包\n\n"
-        "- 来源：https://github.com/jingh12312-rgb/bailong-desktop-pet\n"
-        "- 版本：v0.4.1\n"
-        "- 作者：jingh12312-rgb\n"
-        "- 原仓库未指定开放许可；本包按作者许可仅用于个人桌宠，禁止公开分发或商用。\n"
-        "- 动作素材由原项目 releases 中的 Windows 包转换而来，仅做尺寸/编码转换，未改角色形象。\n",
+        "# GPT\u767d\u9f99\u5a18\u89d2\u8272\u5305\n\n"
+        "- \u6765\u6e90\uff1ahttps://github.com/jingh12312-rgb/bailong-desktop-pet\n"
+        "- \u7248\u672c\uff1av0.4.1\n"
+        "- \u4f5c\u8005\uff1ajingh12312-rgb\n"
+        "- \u539f\u4ed3\u5e93\u672a\u6307\u5b9a\u5f00\u653e\u8bb8\u53ef\uff1b\u672c\u5305\u6309\u4f5c\u8005\u8bb8\u53ef\u4ec5\u7528\u4e8e\u4e2a\u4eba\u684c\u5ba0\uff0c\u7981\u6b62\u516c\u5f00\u5206\u53d1\u6216\u5546\u7528\u3002\n"
+        "- \u52a8\u4f5c\u7d20\u6750\u7531\u539f\u9879\u76ee releases \u4e2d\u7684 Windows \u5305\u8f6c\u6362\u800c\u6765\uff0c\u4ec5\u505a\u5c3a\u5bf8/\u7f16\u7801\u8f6c\u6362\uff0c\u672a\u6539\u89d2\u8272\u5f62\u8c61\u3002\n",
         encoding="utf-8",
     )
     # Preview from the idle clip's first frame.
