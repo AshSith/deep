@@ -1,0 +1,56 @@
+name: aboutme-packs
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  packs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Pillow
+        run: python3 -m pip install --quiet pillow
+
+      - name: Fetch aboutme-pets
+        run: git clone --depth 1 https://github.com/hunmer/aboutme-pets /tmp/aboutme
+
+      - name: Build four packs
+        run: |
+          python3 tools/build_aboutme_packs.py \
+            --source /tmp/aboutme \
+            --out build/packs \
+            --jobs 4
+
+      - name: Upload dsh
+        uses: actions/upload-artifact@v4
+        with:
+          name: aboutme-dsh
+          path: build/packs/dsh-character.zip
+          if-no-files-found: error
+
+      - name: Upload dsh1
+        uses: actions/upload-artifact@v4
+        with:
+          name: aboutme-dsh1
+          path: build/packs/dsh1-character.zip
+          if-no-files-found: error
+
+      - name: Upload gpt
+        uses: actions/upload-artifact@v4
+        with:
+          name: aboutme-gpt
+          path: build/packs/gpt-character.zip
+          if-no-files-found: error
+
+      - name: Upload claude
+        uses: actions/upload-artifact@v4
+        with:
+          name: aboutme-claude
+          path: build/packs/claude-character.zip
+          if-no-files-found: error
