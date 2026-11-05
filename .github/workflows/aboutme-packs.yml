@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   packs:
@@ -54,3 +54,16 @@ jobs:
           name: aboutme-claude
           path: build/packs/claude-character.zip
           if-no-files-found: error
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=aboutme-packs-20261105
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" build/packs/*-character.zip --clobber
+          else
+            gh release create "$TAG" build/packs/*-character.zip \
+              --title "Aboutme pets character packs" \
+              --notes "Four companion-android packs converted from hunmer/aboutme-pets. All frames and 12 fps preserved; 640x360; non-commercial, attribution required."
+          fi
