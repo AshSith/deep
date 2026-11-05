@@ -80,9 +80,10 @@ def process_one(job):
         if not frames:
             return action["id"], None, "no frames"
         filename = dest.name + ".webp"
+        outfile = dest.with_suffix(".webp")
         duration = max(1, round(1000 / max(1, fps)))
         frames[0].save(
-            dest,
+            outfile,
             format="WEBP",
             save_all=True,
             append_images=frames[1:],
