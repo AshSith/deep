@@ -126,7 +126,9 @@ class Speaker(context: Context) {
                 initBert()
                 return
             }
-            val speaker = voiceName?.takeIf { it.isNotBlank() } ?: bert.speakers().firstOrNull()
+            val speakers = bert.speakers()
+            val speaker = voiceName?.takeIf { it.isNotBlank() && it in speakers }
+                ?: speakers.firstOrNull()
             if (speaker == null) {
                 _message.value = "Bert 模型里没有可用音色"
                 return
