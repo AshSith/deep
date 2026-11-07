@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  contents: read
+  contents: write
 
 env:
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
@@ -68,3 +68,17 @@ jobs:
           name: dsh-companion-debug
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish personal TTS APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=dsh-tts-0.13.1
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --title "DSH Companion 0.13.1 personal Bert-VITS2" \
+              --notes "Personal-use build with Bert-VITS2 2.3 demo models. Non-commercial; do not redistribute."
+          fi
