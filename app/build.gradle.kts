@@ -20,7 +20,7 @@ android {
 
     defaultConfig {
         applicationId = "com.dsh.companion"
-        minSdk = 28
+        minSdk = 29
         targetSdk = 34
         versionCode = 35
         versionName = "0.13.0"
@@ -72,6 +72,7 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.example.bertvits2mnn:bertvits2-infer-wrapper:2.0.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }
