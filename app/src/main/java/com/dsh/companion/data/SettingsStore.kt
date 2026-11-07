@@ -69,6 +69,18 @@ class SettingsStore(context: Context) {
         get() = prefs.getBoolean(KEY_SHOW_IN_APP, false)
         set(value) = prefs.edit().putBoolean(KEY_SHOW_IN_APP, value).apply()
 
+    var bertTtsEnabled: Boolean
+        get() = prefs.getBoolean(KEY_BERT_TTS, false)
+        set(value) = prefs.edit().putBoolean(KEY_BERT_TTS, value).apply()
+
+    var bertSpeed: Float
+        get() = prefs.getFloat(KEY_BERT_SPEED, 1f).coerceIn(0.6f, 1.6f)
+        set(value) = prefs.edit().putFloat(KEY_BERT_SPEED, value.coerceIn(0.6f, 1.6f)).apply()
+
+    var bertVolume: Float
+        get() = prefs.getFloat(KEY_BERT_VOLUME, 1f).coerceIn(0.1f, 1f)
+        set(value) = prefs.edit().putFloat(KEY_BERT_VOLUME, value.coerceIn(0.1f, 1f)).apply()
+
     var petBounce: Float
         get() = prefs.getFloat(KEY_PET_BOUNCE, 0.6f).coerceIn(0.1f, 1f)
         set(value) = prefs.edit().putFloat(KEY_PET_BOUNCE, value.coerceIn(0.1f, 1f)).apply()
@@ -148,6 +160,9 @@ class SettingsStore(context: Context) {
         const val KEY_EXTRA_PETS = "extra_pets"
         const val KEY_DESKTOP_PETS = "desktop_pets"
         const val KEY_SHOW_IN_APP = "show_pet_in_app"
+        const val KEY_BERT_TTS = "bert_tts"
+        const val KEY_BERT_SPEED = "bert_speed"
+        const val KEY_BERT_VOLUME = "bert_volume"
         const val KEY_PET_BOUNCE = "pet_bounce"
         const val KEY_MENU_SCALE = "menu_scale"
         const val KEY_CHAT_BG_COLOR = "chat_bg_color"
