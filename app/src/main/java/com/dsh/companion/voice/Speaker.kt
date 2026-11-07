@@ -6,9 +6,15 @@ import android.os.Looper
 import android.speech.tts.TextToSpeech
 import android.speech.tts.Voice
 import com.dsh.companion.data.Persona
+import com.dsh.companion.data.SettingsStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.util.Locale
 
 class Speaker(context: Context) {
@@ -20,11 +26,17 @@ class Speaker(context: Context) {
     )
 
     private val appContext = context.applicationContext
+    private val settings = SettingsStore(appContext)
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var tts: TextToSpeech? = null
+    private val bert = BertTts(appContext)
 
     private val _ready = MutableStateFlow(false)
     val ready: StateFlow<Boolean> = _ready.asStateFlow()
+
+    private val _bertReady = MutableStateFlow(false)
+    val bertReady: StateFlow<Boolean> = _bertReady.asStateFlow()
 
     private val _voices = MutableStateFlow<List<VoiceOption>>(emptyList())
     val voices: StateFlow<List<VoiceOption>> = _voices.asStateFlow()
@@ -33,12 +45,27 @@ class Speaker(context: Context) {
     val message: StateFlow<String?> = _message.asStateFlow()
 
     fun init() {
-        if (tts != null) return
-        var created: TextToSpeech? = null
-        created = TextToSpeech(appContext) { status ->
-            mainHandler.post { created?.let { handleInit(it, status) } }
+        if (tts == null) {
+            var created: TextToSpeech? = null
+            created = TextToSpeech(appContext) { status ->
+                mainHandler.post { created?.let { handleInit(it, status) } }
+            }
+            tts = created
         }
-        tts = created
+        scope.launch {
+            if (settings.bertTtsEnabled) initBertAsync()
+        }
+    }
+
+    fun initBert() {
+        scope.launch { initBertAsync() }
+    }
+
+    private suspend fun initBertAsync() {
+        if (_bertReady.value) return
+        val ok = runCatching { bert.init() }.getOrDefault(false)
+        _bertReady.value = ok
+        if (ok) refreshVoices()
     }
 
     private fun handleInit(engine: TextToSpeech, status: Int) {
@@ -61,6 +88,13 @@ class Speaker(context: Context) {
     }
 
     private fun refreshVoices(engine: TextToSpeech) {
+        if (settings.bertTtsEnabled) {
+            val speakers = if (_bertReady.value) bert.speakers() else emptyList()
+            _voices.value = speakers.map { name ->
+                VoiceOption(name, "Bert · $name", "bert", false)
+            }.sortedBy { it.label }
+            return
+        }
         val all = runCatching { engine.voices?.toList().orEmpty() }.getOrDefault(emptyList())
         val chinese = all.filter { it.locale.language == Locale.CHINESE.language }
         val source = if (chinese.isNotEmpty()) chinese else all
@@ -83,14 +117,35 @@ class Speaker(context: Context) {
     }
 
     fun speakRaw(text: String, voiceName: String?, pitch: Float, rate: Float) {
+        val clean = text.replace(Regex("\\[\\[记住\\]\\][\\s\\S]*$"), "").trim()
+        if (clean.isBlank()) return
+
+        if (settings.bertTtsEnabled) {
+            if (!_bertReady.value) {
+                _message.value = "本地 Bert 语音正在初始化，首次会解压模型，稍后再试"
+                initBert()
+                return
+            }
+            val speaker = voiceName?.takeIf { it.isNotBlank() } ?: bert.speakers().firstOrNull()
+            if (speaker == null) {
+                _message.value = "Bert 模型里没有可用音色"
+                return
+            }
+            stop()
+            scope.launch {
+                val ok = runCatching {
+                    bert.speak(clean, speaker, settings.bertSpeed, settings.bertVolume, pitch)
+                }.getOrDefault(false)
+                if (!ok) _message.value = "本地 Bert 朗读失败"
+            }
+            return
+        }
+
         val engine = tts ?: return
         if (!_ready.value) {
             _message.value = "语音还在准备，稍等一下"
             return
         }
-        val clean = text.replace(Regex("\\[\\[记住\\]\\][\\s\\S]*$"), "").trim()
-        if (clean.isBlank()) return
-
         runCatching {
             engine.stop()
             engine.setSpeechRate(rate.coerceIn(0.5f, 2f))
@@ -107,6 +162,7 @@ class Speaker(context: Context) {
 
     fun stop() {
         runCatching { tts?.stop() }
+        bert.stop()
     }
 
     fun shutdown() {
@@ -115,6 +171,9 @@ class Speaker(context: Context) {
             tts?.shutdown()
         }
         tts = null
+        bert.release()
+        scope.cancel()
         _ready.value = false
+        _bertReady.value = false
     }
 }
