@@ -79,6 +79,10 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
     val bubbleColor by vm.bubbleColor.collectAsStateWithLifecycle()
     val bubbleTextColor by vm.bubbleTextColor.collectAsStateWithLifecycle()
     val ttsReady by vm.ttsReady.collectAsStateWithLifecycle()
+    val bertReady by vm.bertReady.collectAsStateWithLifecycle()
+    val bertEnabled by vm.bertTtsEnabled.collectAsStateWithLifecycle()
+    val bertSpeed by vm.bertSpeed.collectAsStateWithLifecycle()
+    val bertVolume by vm.bertVolume.collectAsStateWithLifecycle()
     val duckSound by vm.duckSoundEnabled.collectAsStateWithLifecycle()
     val showInApp by vm.showPetInApp.collectAsStateWithLifecycle()
     val personas by vm.personas.collectAsStateWithLifecycle()
@@ -373,9 +377,53 @@ fun SettingsScreen(vm: MainViewModel, onAppearance: () -> Unit, onCharacters: ()
             item {
                 SettingsCard(title = "语音") {
                     Text(
-                        text = if (ttsReady) "系统 TTS 已就绪 · ${voices.size} 个中文音色" else "系统 TTS 未就绪",
+                        text = if (bertEnabled) {
+                            if (bertReady) "本地 Bert-VITS2 已就绪 · ${voices.size} 个音色"
+                            else "本地 Bert-VITS2 正在初始化（首次会解压模型）"
+                        } else if (ttsReady) {
+                            "系统 TTS 已就绪 · ${voices.size} 个中文音色"
+                        } else {
+                            "系统 TTS 未就绪"
+                        },
                         style = MaterialTheme.typography.bodyMedium,
                     )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("使用本地 Bert-VITS2", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "离线合成，音色在角色页选择",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        Switch(
+                            checked = bertEnabled,
+                            onCheckedChange = { vm.setBertTtsEnabled(it) },
+                        )
+                    }
+                    if (bertEnabled) {
+                        Text(
+                            "语速：${(bertSpeed * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Slider(
+                            value = bertSpeed,
+                            onValueChange = { vm.setBertSpeed(it) },
+                            valueRange = 0.6f..1.6f,
+                        )
+                        Text(
+                            "音量：${(bertVolume * 100).toInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Slider(
+                            value = bertVolume,
+                            onValueChange = { vm.setBertVolume(it) },
+                            valueRange = 0.1f..1f,
+                        )
+                    }
                     if (voiceMessage != null) {
                         Text(
                             text = voiceMessage.orEmpty(),
