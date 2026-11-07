@@ -1,0 +1,53 @@
+name: bert-aar
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install NDK and CMake
+        run: |
+          SDKMANAGER=$(find "$ANDROID_SDK_ROOT/cmdline-tools" -name sdkmanager -type f | head -n 1)
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" --install "ndk;28.2.13676358" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Clone Bert-VITS2-MNN
+        env:
+          GIT_LFS_SKIP_SMUDGE: '1'
+        run: |
+          git clone --depth 1 --recursive https://github.com/Voine/Bert-VITS2-MNN /tmp/bert
+          cd /tmp/bert
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+
+      - name: Build AARs
+        run: |
+          cd /tmp/bert
+          chmod +x gradlew
+          ./gradlew publishAars --no-daemon --stacktrace --console=plain
+
+      - name: Package AAR repo
+        run: |
+          cd /tmp/bert
+          tar -czf /tmp/bert-aar.tgz -C build/repo .
+
+      - name: Upload AAR repo
+        uses: actions/upload-artifact@v4
+        with:
+          name: bert-aar-repo
+          path: /tmp/bert-aar.tgz
+          if-no-files-found: error
