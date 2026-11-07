@@ -166,8 +166,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val bubbleTextColor: StateFlow<Int> = _bubbleTextColor.asStateFlow()
 
     val ttsReady: StateFlow<Boolean> = speaker.ready
+    val bertReady = speaker.bertReady
     val voices = speaker.voices
     val voiceMessage = speaker.message
+
+    private val _bertTtsEnabled = MutableStateFlow(settings.bertTtsEnabled)
+    val bertTtsEnabled: StateFlow<Boolean> = _bertTtsEnabled.asStateFlow()
+    private val _bertSpeed = MutableStateFlow(settings.bertSpeed)
+    val bertSpeed: StateFlow<Float> = _bertSpeed.asStateFlow()
+    private val _bertVolume = MutableStateFlow(settings.bertVolume)
+    val bertVolume: StateFlow<Float> = _bertVolume.asStateFlow()
 
     private var sendJob: Job? = null
     private var speechJob: Job? = null
@@ -277,6 +285,25 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         settings.showPetInApp = value
         _showPetInApp.value = value
         PetBus.emit(PetEvent.RefreshPets)
+    }
+
+    fun setBertTtsEnabled(value: Boolean) {
+        settings.bertTtsEnabled = value
+        _bertTtsEnabled.value = value
+        if (value) speaker.initBert()
+        speaker.refreshVoices()
+    }
+
+    fun setBertSpeed(value: Float) {
+        val next = value.coerceIn(0.6f, 1.6f)
+        settings.bertSpeed = next
+        _bertSpeed.value = next
+    }
+
+    fun setBertVolume(value: Float) {
+        val next = value.coerceIn(0.1f, 1f)
+        settings.bertVolume = next
+        _bertVolume.value = next
     }
 
     private fun ensureDesktopPersona(id: String) {
