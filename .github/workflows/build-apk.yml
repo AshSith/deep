@@ -47,6 +47,18 @@ jobs:
           java -version
           gradle --version
 
+      - name: Bundle Bert-VITS2 personal models
+        run: |
+          curl -fL --retry 4 --retry-delay 5 \
+            -o /tmp/bertvits2.apk \
+            https://github.com/Voine/Bert-VITS2-MNN/releases/download/v2.0.0/BertVits2-v2.0.0.apk
+          rm -rf /tmp/bertvits2-assets
+          unzip -q /tmp/bertvits2.apk 'assets/bert/*' 'assets/bv2_model/*' -d /tmp/bertvits2-assets
+          mkdir -p app/src/main/assets
+          cp -R /tmp/bertvits2-assets/assets/bert app/src/main/assets/
+          cp -R /tmp/bertvits2-assets/assets/bv2_model app/src/main/assets/
+          du -sh app/src/main/assets/bert app/src/main/assets/bv2_model
+
       - name: Build debug APK
         run: gradle assembleDebug --no-daemon --stacktrace --console=plain
 
