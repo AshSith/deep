@@ -1,0 +1,117 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "cpptokenizer",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cpptokenizer-2.0.0.aar",
+          "url": "cpptokenizer-2.0.0.aar",
+          "size": 2821734,
+          "sha512": "667ebbd07fbb25fc77fe5f190dd7acded6b213474243c541f0266cdaab0b22503bb62a5291870fecc153cda08b0d950240a138a9fe9e91c8020e3eadb0b53a18",
+          "sha256": "5346588899de1a373fef3a7c1a873ff9ddaa97d86674ab42a1feb95fe1ea57ce",
+          "sha1": "045deee3fb1e712eb991f1da6e03e7ad1076b6ca",
+          "md5": "521dac9de9e8224dd2eabceebf183854"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "com.google.android.material",
+          "module": "material",
+          "version": {
+            "requires": "1.10.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cpptokenizer-2.0.0.aar",
+          "url": "cpptokenizer-2.0.0.aar",
+          "size": 2821734,
+          "sha512": "667ebbd07fbb25fc77fe5f190dd7acded6b213474243c541f0266cdaab0b22503bb62a5291870fecc153cda08b0d950240a138a9fe9e91c8020e3eadb0b53a18",
+          "sha256": "5346588899de1a373fef3a7c1a873ff9ddaa97d86674ab42a1feb95fe1ea57ce",
+          "sha1": "045deee3fb1e712eb991f1da6e03e7ad1076b6ca",
+          "md5": "521dac9de9e8224dd2eabceebf183854"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "cpptokenizer-2.0.0-sources.jar",
+          "url": "cpptokenizer-2.0.0-sources.jar",
+          "size": 1425,
+          "sha512": "2d4f6e927d3436851ea836d65ef75aeeded03b7e34c82fa219cae295bf361f08bbe8e47951348b9a308f8b9653d5e1c93fb6bf9a1fc50ae71f03620ee9b5a37f",
+          "sha256": "09a3f91e726df7b5cf7aab447e9917ba7c67a3f7230f365d927ffc4904a98820",
+          "sha1": "649d5e86735f82410f4f24b6df5771771cdb9284",
+          "md5": "322c4476b4d948caf904c04fea21f385"
+        }
+      ]
+    }
+  ]
+}
