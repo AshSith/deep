@@ -1,0 +1,117 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "openjtalk",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "openjtalk-2.0.0.aar",
+          "url": "openjtalk-2.0.0.aar",
+          "size": 2299116,
+          "sha512": "bb293f40251021982bd4a2f3729318efd8ed0fa0499ef4132dd88d24bf9a23041ec794a483a4ee86f4067528364c41db0b752bf2b623b0e2845176cf58981827",
+          "sha256": "bd1470cd52dbca55679f51c6f908d84b10cd321dd5d32c9ba85d7e0b5bd713f4",
+          "sha1": "43ef6d5aea651b601e96f6c478f3e84495276301",
+          "md5": "d69efa2930d937e1e4b1d1e839d8a0a2"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "com.google.android.material",
+          "module": "material",
+          "version": {
+            "requires": "1.10.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "openjtalk-2.0.0.aar",
+          "url": "openjtalk-2.0.0.aar",
+          "size": 2299116,
+          "sha512": "bb293f40251021982bd4a2f3729318efd8ed0fa0499ef4132dd88d24bf9a23041ec794a483a4ee86f4067528364c41db0b752bf2b623b0e2845176cf58981827",
+          "sha256": "bd1470cd52dbca55679f51c6f908d84b10cd321dd5d32c9ba85d7e0b5bd713f4",
+          "sha1": "43ef6d5aea651b601e96f6c478f3e84495276301",
+          "md5": "d69efa2930d937e1e4b1d1e839d8a0a2"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "openjtalk-2.0.0-sources.jar",
+          "url": "openjtalk-2.0.0-sources.jar",
+          "size": 1128,
+          "sha512": "8dee8a657dd8e9e213b30722632eb66e8e3483985f5415f52b25118571794e17b609441cc138c52a217c5d62cd5bbcb17adcb68bcf4aa3fa1490a4eca4b76007",
+          "sha256": "15aef49f2e23f48c566d8199c71f470236cafa668fedef02e46a374d89e940bb",
+          "sha1": "eebe10663cd9e89a045651bc6c8f7b997d9adbd9",
+          "md5": "091fb96b8730f53cd4961bf5a29ffa7c"
+        }
+      ]
+    }
+  ]
+}
