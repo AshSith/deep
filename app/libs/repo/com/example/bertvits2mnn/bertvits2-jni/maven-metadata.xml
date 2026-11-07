@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <groupId>com.example.bertvits2mnn</groupId>
+  <artifactId>bertvits2-jni</artifactId>
+  <versioning>
+    <latest>2.0.0</latest>
+    <release>2.0.0</release>
+    <versions>
+      <version>2.0.0</version>
+    </versions>
+    <lastUpdated>20261107122226</lastUpdated>
+  </versioning>
+</metadata>
