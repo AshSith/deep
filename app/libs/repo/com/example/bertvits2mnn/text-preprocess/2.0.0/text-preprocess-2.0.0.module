@@ -1,0 +1,145 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "text-preprocess",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "text-preprocess-2.0.0.aar",
+          "url": "text-preprocess-2.0.0.aar",
+          "size": 6057375,
+          "sha512": "0b8fb0045cbb2191ea9d9e1ad0d1e6d9f7fb48e3af72a8ad4fab3df1d52b3c66706630ddd71d470afae8f05625193fb3fb782e9640b79f0b5825b92bedef3e78",
+          "sha256": "2fccaae2f87ede6f3b78fac82557b5481c067cdfcbeb7efb75b816a62dd9dbd8",
+          "sha1": "67a1495e665277fd3bf061bf779806531f489ddc",
+          "md5": "b6b7d01a61e2a68bf888170f9be60af6"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "cppjieba",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "cpptokenizer",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "com.github.houbb",
+          "module": "pinyin",
+          "version": {
+            "requires": "0.4.0"
+          }
+        },
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "openjtalk",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "com.ibm.icu",
+          "module": "icu4j",
+          "version": {
+            "requires": "68.1"
+          }
+        },
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "text-preprocess-2.0.0.aar",
+          "url": "text-preprocess-2.0.0.aar",
+          "size": 6057375,
+          "sha512": "0b8fb0045cbb2191ea9d9e1ad0d1e6d9f7fb48e3af72a8ad4fab3df1d52b3c66706630ddd71d470afae8f05625193fb3fb782e9640b79f0b5825b92bedef3e78",
+          "sha256": "2fccaae2f87ede6f3b78fac82557b5481c067cdfcbeb7efb75b816a62dd9dbd8",
+          "sha1": "67a1495e665277fd3bf061bf779806531f489ddc",
+          "md5": "b6b7d01a61e2a68bf888170f9be60af6"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "text-preprocess-2.0.0-sources.jar",
+          "url": "text-preprocess-2.0.0-sources.jar",
+          "size": 49217,
+          "sha512": "66d100b1bce83caf969b5bb919f60be6bb7d6cc526e040aaed19dbc494811fd0600ad1d0ba51a040a97c62a978b579be124b4b3601d0a6bef02ea47f8d30d7ed",
+          "sha256": "ed86c2b81cd336c56df9d6763ae520981946ba81b232284fbe24da1ef4233322",
+          "sha1": "c585c029c230a2b449402947b12b768f986a6add",
+          "md5": "d4cd648cc574afb57912b3018396814f"
+        }
+      ]
+    }
+  ]
+}
