@@ -1,0 +1,110 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "bertvits2-jni",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "bertvits2-jni-2.0.0.aar",
+          "url": "bertvits2-jni-2.0.0.aar",
+          "size": 3062333,
+          "sha512": "98a1b3fe91430cf730409d1c6808fe67b23646cee6de7c3df640d92455af264bd28084a31d08d95b91cb6ca7de75454266716488cb42a90e16f40dfcc7f071e7",
+          "sha256": "e9fe691e7a7f0341982e12d15b4095de794d232c1ad5488418cfb3175b270739",
+          "sha1": "c363c1ffa736328aa0e5270391acd1c34beb21d7",
+          "md5": "774f9a16536a7a8be501f8501ae7dfb0"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "bertvits2-jni-2.0.0.aar",
+          "url": "bertvits2-jni-2.0.0.aar",
+          "size": 3062333,
+          "sha512": "98a1b3fe91430cf730409d1c6808fe67b23646cee6de7c3df640d92455af264bd28084a31d08d95b91cb6ca7de75454266716488cb42a90e16f40dfcc7f071e7",
+          "sha256": "e9fe691e7a7f0341982e12d15b4095de794d232c1ad5488418cfb3175b270739",
+          "sha1": "c363c1ffa736328aa0e5270391acd1c34beb21d7",
+          "md5": "774f9a16536a7a8be501f8501ae7dfb0"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "bertvits2-jni-2.0.0-sources.jar",
+          "url": "bertvits2-jni-2.0.0-sources.jar",
+          "size": 1208,
+          "sha512": "ba2f15d98ae194092cad70b999c0333cbed26211356dcbe4f9a5df2485f97db437ed49c751772b475316a2d1cf5ba752fe6c6a061fe1e1d70b8dfb2a494fab81",
+          "sha256": "e3f8647f0e1d4e40e93c652cc1c2e989bf400a1375f36a92675d385bad024bb4",
+          "sha1": "f05d66bb7108eaafb03432cb2b9979ad8dfd75dd",
+          "md5": "d31e7c4c06e544170f75fa60d4a9917c"
+        }
+      ]
+    }
+  ]
+}
