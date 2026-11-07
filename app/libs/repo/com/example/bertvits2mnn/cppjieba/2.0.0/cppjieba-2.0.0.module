@@ -1,0 +1,117 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "cppjieba",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cppjieba-2.0.0.aar",
+          "url": "cppjieba-2.0.0.aar",
+          "size": 304079,
+          "sha512": "06cffb39d73a45e2be69fece2bd2712ac007a35fa7a9c406b9c754e5ea9942dca96d5fa503053266b76c8667b7f724dda22c2153683a40145a30a30fb0b6dfa4",
+          "sha256": "70bf9556e437bb10a1814940bf7bd29b2ee1a68fa5934b57e52f43fb168f02e3",
+          "sha1": "ec3db9c5dfe2b8cdd4f886a1f38ce0f26072a137",
+          "md5": "15f86133e042cdbcc1dbc57a287a2f8a"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "com.google.android.material",
+          "module": "material",
+          "version": {
+            "requires": "1.10.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "cppjieba-2.0.0.aar",
+          "url": "cppjieba-2.0.0.aar",
+          "size": 304079,
+          "sha512": "06cffb39d73a45e2be69fece2bd2712ac007a35fa7a9c406b9c754e5ea9942dca96d5fa503053266b76c8667b7f724dda22c2153683a40145a30a30fb0b6dfa4",
+          "sha256": "70bf9556e437bb10a1814940bf7bd29b2ee1a68fa5934b57e52f43fb168f02e3",
+          "sha1": "ec3db9c5dfe2b8cdd4f886a1f38ce0f26072a137",
+          "md5": "15f86133e042cdbcc1dbc57a287a2f8a"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "cppjieba-2.0.0-sources.jar",
+          "url": "cppjieba-2.0.0-sources.jar",
+          "size": 1052,
+          "sha512": "ff6819a6009d6f471f375fac31f786f893a430c68508b03287ec0f527ba625214e9a8d7ffbed2a9a4db6320e7d8d4bd0af85f02ee73cb9511307fea629dd8b1e",
+          "sha256": "413f8405cc974e3cc913b9af4b0ed3bf9565f9a6010438ae52a0fdb1d2b95c8d",
+          "sha1": "e46046ebbcee1d98b2ce8c290e549efa638d05ae",
+          "md5": "f5b7b712571b99274e6a584ed843bec8"
+        }
+      ]
+    }
+  ]
+}
