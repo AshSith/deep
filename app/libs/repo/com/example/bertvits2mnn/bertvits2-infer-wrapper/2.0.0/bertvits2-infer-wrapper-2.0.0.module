@@ -1,0 +1,138 @@
+{
+  "formatVersion": "1.1",
+  "component": {
+    "group": "com.example.bertvits2mnn",
+    "module": "bertvits2-infer-wrapper",
+    "version": "2.0.0",
+    "attributes": {
+      "org.gradle.status": "release"
+    }
+  },
+  "createdBy": {
+    "gradle": {
+      "version": "8.11.1"
+    }
+  },
+  "variants": [
+    {
+      "name": "releaseVariantReleaseApiPublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-api"
+      },
+      "dependencies": [
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "text-preprocess",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "bertvits2-infer-wrapper-2.0.0.aar",
+          "url": "bertvits2-infer-wrapper-2.0.0.aar",
+          "size": 32867,
+          "sha512": "db1b333864a71efa19eb9617c552ac70949e3784a0ef663b87c161908475a9fb6e7960078cb1e3fa6747d66bbe5eb70298ea8c7d6bc9f9fd407c0d0d132f2962",
+          "sha256": "8e689632c27ebbaf796c637e54e4da53d023c56bee2a1c242365df63bfe13881",
+          "sha1": "e206bdc9bbf39f0ee5238e85d10ac4cd5e8b7102",
+          "md5": "e03d4074b2d0dfda742d0712e221cf86"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseRuntimePublication",
+      "attributes": {
+        "org.gradle.category": "library",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.libraryelements": "aar",
+        "org.gradle.usage": "java-runtime"
+      },
+      "dependencies": [
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "bertvits2-jni",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "androidx.core",
+          "module": "core-ktx",
+          "version": {
+            "requires": "1.10.1"
+          }
+        },
+        {
+          "group": "androidx.appcompat",
+          "module": "appcompat",
+          "version": {
+            "requires": "1.6.1"
+          }
+        },
+        {
+          "group": "com.google.code.gson",
+          "module": "gson",
+          "version": {
+            "requires": "2.10.1"
+          }
+        },
+        {
+          "group": "com.example.bertvits2mnn",
+          "module": "text-preprocess",
+          "version": {
+            "requires": "2.0.0"
+          }
+        },
+        {
+          "group": "org.jetbrains.kotlin",
+          "module": "kotlin-stdlib",
+          "version": {
+            "requires": "2.0.21"
+          }
+        }
+      ],
+      "files": [
+        {
+          "name": "bertvits2-infer-wrapper-2.0.0.aar",
+          "url": "bertvits2-infer-wrapper-2.0.0.aar",
+          "size": 32867,
+          "sha512": "db1b333864a71efa19eb9617c552ac70949e3784a0ef663b87c161908475a9fb6e7960078cb1e3fa6747d66bbe5eb70298ea8c7d6bc9f9fd407c0d0d132f2962",
+          "sha256": "8e689632c27ebbaf796c637e54e4da53d023c56bee2a1c242365df63bfe13881",
+          "sha1": "e206bdc9bbf39f0ee5238e85d10ac4cd5e8b7102",
+          "md5": "e03d4074b2d0dfda742d0712e221cf86"
+        }
+      ]
+    },
+    {
+      "name": "releaseVariantReleaseSourcePublication",
+      "attributes": {
+        "org.gradle.category": "documentation",
+        "org.gradle.dependency.bundling": "external",
+        "org.gradle.docstype": "sources",
+        "org.gradle.usage": "java-runtime"
+      },
+      "files": [
+        {
+          "name": "bertvits2-infer-wrapper-2.0.0-sources.jar",
+          "url": "bertvits2-infer-wrapper-2.0.0-sources.jar",
+          "size": 10073,
+          "sha512": "1ea97a199b4980d34d889304024d8400f6a60f58b57b32ef766c9971bd96476446a2ad06f618769b21a0bb5596d13fecc575b665c05b1c38c1800842a82c84a2",
+          "sha256": "a3494b0eade1106d0333b02d07ec0ffb0842986dadeb9f10173c850281d262f8",
+          "sha1": "e141e8533593bbe38e1c07521ed9cef94b3a47c7",
+          "md5": "07b91466c633815f60f038ff24b87687"
+        }
+      ]
+    }
+  ]
+}
